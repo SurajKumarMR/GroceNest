@@ -71,14 +71,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Android Release APK
+      - name: Build Android Bundled Debug APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleDebug
         working-directory: mobile/android
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          name: app-debug-bundled
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
