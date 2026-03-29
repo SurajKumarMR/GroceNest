@@ -1,3 +1,5 @@
+"use client";
+
 import { Header } from "@/components/layout/Header";
 import { MessageSquare, Phone, Mail, MapPin } from "lucide-react";
 import Link from "next/link";
