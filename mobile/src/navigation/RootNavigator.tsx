@@ -22,6 +22,7 @@ import { DriverDashboardScreen } from '../screens/DriverDashboardScreen';
 import { DriverActiveOrdersScreen } from '../screens/DriverActiveOrdersScreen';
 import { ReviewScreen } from '../screens/ReviewScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
+import { RoleSelectionScreen } from '../screens/RoleSelectionScreen';
 import { OrderSuccessScreen } from '../screens/OrderSuccessScreen';
 import { OrderTrackingScreen } from '../screens/OrderTrackingScreen';
 import { ChatScreen } from '../screens/ChatScreen';
@@ -38,6 +39,7 @@ const Tab = createBottomTabNavigator();
 
 const AuthStack = () => (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
     </Stack.Navigator>

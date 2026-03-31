@@ -11,6 +11,7 @@ export const registerSchema = z.object({
     firstName: z.string().min(2),
     lastName: z.string().min(2),
     phone: z.string().regex(/^\+44[0-9]{10}$/, 'Invalid UK phone number format (+44xxxxxxxxxx)').optional(),
+    role: z.enum(['CUSTOMER', 'MERCHANT', 'DRIVER']).optional(),
 });
 
 export const loginSchema = z.object({

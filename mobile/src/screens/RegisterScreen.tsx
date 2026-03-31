@@ -15,12 +15,12 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../theme/colors';
 
-export const RegisterScreen = ({ navigation }: any) => {
+export const RegisterScreen = ({ route, navigation }: any) => {
+    const role = route.params?.role || 'CUSTOMER';
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [role, setRole] = useState<'CUSTOMER' | 'MERCHANT' | 'DRIVER'>('CUSTOMER');
     const [loading, setLoading] = useState(false);
     const { signUp } = useAuth();
 
@@ -46,7 +46,7 @@ export const RegisterScreen = ({ navigation }: any) => {
             style={styles.container}
         >
             <ScrollView contentContainerStyle={styles.scrollContainer}>
-                <Text style={styles.title}>Join GroceNest</Text>
+                <Text style={styles.title}>Join as a {role.charAt(0) + role.slice(1).toLowerCase()}</Text>
                 <Text style={styles.subtitle}>Create an account to start shopping</Text>
 
                 <View style={styles.row}>
@@ -93,26 +93,7 @@ export const RegisterScreen = ({ navigation }: any) => {
                     />
                 </View>
 
-                <Text style={styles.label}>I want to be a:</Text>
-                <View style={styles.roleContainer}>
-                    {(['CUSTOMER', 'MERCHANT', 'DRIVER'] as const).map((r) => (
-                        <TouchableOpacity
-                            key={r}
-                            style={[
-                                styles.roleButton,
-                                role === r && styles.roleButtonActive
-                            ]}
-                            onPress={() => setRole(r)}
-                        >
-                            <Text style={[
-                                styles.roleButtonText,
-                                role === r && styles.roleButtonTextActive
-                            ]}>
-                                {r.charAt(0) + r.slice(1).toLowerCase()}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
+
 
                 <TouchableOpacity
                     style={styles.button}

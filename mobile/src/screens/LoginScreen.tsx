@@ -11,14 +11,23 @@ import {
     ActivityIndicator,
     Alert,
 } from 'react-native';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../theme/colors';
 
-export const LoginScreen = ({ navigation }: any) => {
+export const LoginScreen = ({ route, navigation }: any) => {
+    const role = route.params?.role || 'CUSTOMER';
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const { signIn } = useAuth();
+    const { signIn, googleLogin } = useAuth();
+
+    // Initialize Google SDK (User MUST provide their own Web Client ID from Firebase)
+    React.useEffect(() => {
+        GoogleSignin.configure({
+            webClientId: 'YOUR_WEB_CLIENT_ID_HERE.apps.googleusercontent.com', // TODO: User must replace this
+        });
+    }, []);
 
     const handleLogin = async () => {
         if (!email || !password) {
@@ -36,13 +45,42 @@ export const LoginScreen = ({ navigation }: any) => {
         }
     };
 
+    const handleGoogleSignIn = async () => {
+        try {
+            setLoading(true);
+            await GoogleSignin.hasPlayServices();
+            const userInfo = await GoogleSignin.signIn();
+            
+            await googleLogin({
+                googleId: userInfo.data?.user.id,
+                email: userInfo.data?.user.email,
+                firstName: userInfo.data?.user.givenName || 'Google',
+                lastName: userInfo.data?.user.familyName || 'User',
+                role, // Send the selected role so we assign it properly
+            });
+            
+        } catch (error: any) {
+            if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+                // user cancelled the login flow
+            } else if (error.code === statusCodes.IN_PROGRESS) {
+                // operation (e.g. sign in) is in progress already
+            } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+                Alert.alert('Play Services not available or outdated');
+            } else {
+                Alert.alert('Google Sign-In failed', error.message || 'Unknown error');
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.container}
         >
             <View style={styles.formContainer}>
-                <Text style={styles.title}>GroceNest</Text>
+                <Text style={styles.title}>GroceNest {"\n"} {role.charAt(0) + role.slice(1).toLowerCase()}</Text>
                 <Text style={styles.subtitle}>Welcome back! Please login to continue</Text>
 
                 <View style={styles.inputContainer}>
@@ -80,9 +118,17 @@ export const LoginScreen = ({ navigation }: any) => {
                     )}
                 </TouchableOpacity>
 
+                <TouchableOpacity
+                    style={[styles.button, { backgroundColor: '#db4437', marginTop: 16 }]}
+                    onPress={handleGoogleSignIn}
+                    disabled={loading}
+                >
+                    <Text style={styles.buttonText}>Sign in with Google</Text>
+                </TouchableOpacity>
+
                 <View style={styles.footer}>
                     <Text style={styles.footerText}>Don't have an account? </Text>
-                    <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+                    <TouchableOpacity onPress={() => navigation.navigate('Register', { role })}>
                         <Text style={styles.linkText}>Register</Text>
                     </TouchableOpacity>
                 </View>

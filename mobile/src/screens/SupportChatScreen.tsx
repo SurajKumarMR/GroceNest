@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, KeyboardAvoidingView, Platform, SafeAreaView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft, Send } from 'lucide-react-native';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext'; // Assuming this exists
 
 const ChatMessage = ({ message, isAdmin }: { message: any, isAdmin: boolean }) => (
-  <div style={[
+  <View style={[
     styles.messageContainer,
     isAdmin ? styles.adminMessage : styles.userMessage
   ]}>
@@ -15,7 +15,7 @@ const ChatMessage = ({ message, isAdmin }: { message: any, isAdmin: boolean }) =
       isAdmin ? styles.adminText : styles.userText
     ]}>{message.content}</Text>
     <Text style={styles.timestamp}>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-  </div>
+  </View>
 );
 
 export default function SupportChatScreen() {
@@ -60,13 +60,13 @@ export default function SupportChatScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <div style={styles.header}>
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <ArrowLeft size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Live Support</Text>
         <View style={{ width: 24 }} />
-      </div>
+      </View>
 
       <FlatList
         ref={flatListRef}
@@ -81,7 +81,7 @@ export default function SupportChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <div style={styles.inputContainer}>
+        <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
             value={input}
@@ -90,9 +90,9 @@ export default function SupportChatScreen() {
             multiline
           />
           <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
-            <Ionicons name="send" size={20} color="white" />
+            <Send size={20} color="white" />
           </TouchableOpacity>
-        </div>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

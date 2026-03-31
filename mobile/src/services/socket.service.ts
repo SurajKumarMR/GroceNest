@@ -1,9 +1,9 @@
-
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+// @ts-ignore
+import { SOCKET_URL as ENV_SOCKET_URL } from '@env';
 
-const SOCKET_URL = Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
+const SOCKET_URL = ENV_SOCKET_URL || 'http://localhost:8000';
 
 let socket: Socket | null = null;
 

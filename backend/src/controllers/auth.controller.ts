@@ -26,7 +26,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
-        const { email, password, firstName, lastName, phone } = validation.data;
+        const { email, password, firstName, lastName, phone, role } = validation.data;
         
         // Secure Password Check: Breach detection
         if (await isPasswordPwned(password)) {
@@ -57,6 +57,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
                 phone: encryptedPhone,
                 phoneVerificationCode,
                 phoneVerified: false,
+                ...(role && { role }),
             },
         });
         
