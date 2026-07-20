@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, Keyboard
 import { useNavigation } from '@react-navigation/native';
 import { ArrowLeft, Send } from 'lucide-react-native';
 import { io, Socket } from 'socket.io-client';
-import { useAuth } from '../context/AuthContext'; // Assuming this exists
+// @ts-ignore
+import { SOCKET_URL } from '@env';
 
 const ChatMessage = ({ message, isAdmin }: { message: any, isAdmin: boolean }) => (
   <View style={[
@@ -27,7 +28,7 @@ export default function SupportChatScreen() {
 
   useEffect(() => {
     // Correct URL for local dev proxy
-    const s = io('http://10.0.2.2:5000', { // Android emulator localhost
+    const s = io(SOCKET_URL || 'http://localhost:8000', { // Android emulator localhost
       transports: ['websocket']
     });
 

@@ -61,13 +61,17 @@ export const register = async (req: Request, res: Response): Promise<void> => {
             },
         });
         
-        // SMS delivery
+        // SMS delivery — fire-and-forget so missing credentials never block registration
         if (phone) {
-            await smsService.sendVerificationOTP(phone, phoneVerificationCode);
+            smsService.sendVerificationOTP(phone, phoneVerificationCode).catch(err =>
+                console.warn('[Auth] SMS send failed (non-fatal):', err.message)
+            );
         }
 
-        // Email verification (Optional but recommended)
-        await emailService.sendVerificationEmail(email, 'placeholder-token'); 
+        // Email verification — fire-and-forget; fails gracefully if SMTP not configured
+        emailService.sendVerificationEmail(email, 'placeholder-token').catch(err =>
+            console.warn('[Auth] Verification email failed (non-fatal):', err.message)
+        );
 
         const token = signToken({ userId: user.id, email: user.email, role: user.role });
         const refreshToken = signRefreshToken({ userId: user.id });
@@ -408,8 +412,10 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
             }
         });
 
-        // Real Email delivery
-        await emailService.sendPasswordResetEmail(email, resetToken);
+        // Email delivery — fire-and-forget; never crash if SMTP not configured
+        emailService.sendPasswordResetEmail(email, resetToken).catch(err =>
+            console.warn('[Auth] Password reset email failed (non-fatal):', err.message)
+        );
 
         res.json({ message: 'If an account exists with this email, a reset link has been sent.' });
     } catch (error) {

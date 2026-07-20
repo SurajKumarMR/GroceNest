@@ -20,13 +20,13 @@ describe('Security & Data Privacy Tests', () => {
 
     beforeAll(async () => {
         const res = await request(app)
-            .post('/api/auth/register')
-            .send({
-                email: testUserEmail,
-                password: 'Password123!',
-                firstName: 'Security',
-                lastName: 'Admin'
-            });
+             .post('/api/auth/register')
+             .send({
+                 email: testUserEmail,
+                 password: 'GrocNest-Secure-Pass-2026!',
+                 firstName: 'Security',
+                 lastName: 'Admin'
+             });
         authToken = res.body.token;
     });
 

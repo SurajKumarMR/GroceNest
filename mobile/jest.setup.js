@@ -25,3 +25,58 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     multiRemove: jest.fn(() => Promise.resolve()),
     multiMerge: jest.fn(() => Promise.resolve()),
 }));
+
+jest.mock('@react-native-google-signin/google-signin', () => ({
+    GoogleSignin: {
+        configure: jest.fn(),
+        hasPlayServices: jest.fn(() => Promise.resolve(true)),
+        signIn: jest.fn(() => Promise.resolve({
+            data: {
+                user: {
+                    id: 'mock-id',
+                    email: 'mock@example.com',
+                    givenName: 'Mock',
+                    familyName: 'User'
+                }
+            }
+        })),
+    },
+    statusCodes: {
+        SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED',
+        IN_PROGRESS: 'IN_PROGRESS',
+        PLAY_SERVICES_NOT_AVAILABLE: 'PLAY_SERVICES_NOT_AVAILABLE',
+    },
+}));
+
+jest.mock('react-native-maps', () => {
+    const React = require('react');
+    class MockMapView extends React.Component {
+        render() {
+            return React.createElement('MapView', this.props, this.props.children);
+        }
+    }
+    class MockMarker extends React.Component {
+        render() {
+            return React.createElement('Marker', this.props, this.props.children);
+        }
+    }
+    return {
+        __esModule: true,
+        default: MockMapView,
+        Marker: MockMarker,
+        PROVIDER_DEFAULT: 'default',
+        PROVIDER_GOOGLE: 'google',
+    };
+});
+
+jest.mock('react-native-svg', () => {
+    return {
+        __esModule: true,
+        default: 'Svg',
+        Svg: 'Svg',
+        Path: 'Path',
+        Circle: 'Circle',
+        Rect: 'Rect',
+        G: 'G',
+    };
+});

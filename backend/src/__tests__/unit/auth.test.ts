@@ -40,7 +40,7 @@ describe('Auth Utilities', () => {
         it('should validate correct registration data', () => {
             const data = {
                 email: 'test@example.com',
-                password: 'password123',
+                password: 'Password123!',
                 firstName: 'John',
                 lastName: 'Doe',
                 phone: '+447000000000'
@@ -52,7 +52,7 @@ describe('Auth Utilities', () => {
         it('should reject invalid email format', () => {
             const data = {
                 email: 'invalid-email',
-                password: 'password123',
+                password: 'Password123!',
                 firstName: 'John',
                 lastName: 'Doe'
             };
@@ -63,7 +63,7 @@ describe('Auth Utilities', () => {
         it('should reject invalid UK phone format', () => {
             const data = {
                 email: 'test@example.com',
-                password: 'password123',
+                password: 'Password123!',
                 firstName: 'John',
                 lastName: 'Doe',
                 phone: '07000000000' // Needs +44

@@ -16,6 +16,8 @@ import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../theme/colors';
 import { launchImageLibrary } from 'react-native-image-picker';
 import api from '../services/api';
+// @ts-ignore
+import { SOCKET_URL } from '@env';
 import { 
     ChevronLeft,
     Camera,
@@ -120,7 +122,7 @@ export const ProfileScreen = ({ navigation }: any) => {
                                 </View>
                             ) : user?.profilePhotoUrl ? (
                                 <Image
-                                    source={{ uri: `http://localhost:5000${user.profilePhotoUrl}` }}
+                                    source={{ uri: `${SOCKET_URL || 'http://localhost:8000'}${user.profilePhotoUrl}` }}
                                     style={styles.avatarImage}
                                 />
                             ) : (

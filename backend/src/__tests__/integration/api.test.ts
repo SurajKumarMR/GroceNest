@@ -33,7 +33,7 @@ describe('API Integration Tests', () => {
                 .post('/api/auth/register')
                 .send({
                     email: testUserEmail,
-                    password: 'Password123!',
+                    password: 'GrocNest-Secure-Pass-2026!',
                     firstName: 'Integration',
                     lastName: 'Test',
                     phone: '+447000000001'
@@ -51,7 +51,7 @@ describe('API Integration Tests', () => {
                 .post('/api/auth/login')
                 .send({
                     email: testUserEmail,
-                    password: 'Password123!'
+                    password: 'GrocNest-Secure-Pass-2026!'
                 });
 
             expect(res.status).toBe(200);

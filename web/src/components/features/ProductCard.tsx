@@ -71,17 +71,26 @@ export function ProductCard({ product }: ProductCardProps) {
                             BRAND
                         </span>
                         <h3 className="font-bold text-[15px] leading-tight text-foreground line-clamp-2">{product.name}</h3>
+                        {product.unit && (
+                            <p className="text-xs text-muted-foreground font-medium mt-0.5">{product.unit}</p>
+                        )}
                     </div>
 
                     <div className="flex items-end justify-between">
                         <div className="flex items-center gap-2">
                             {hasDiscount ? (
                                 <>
-                                    <span className="font-bold text-[#5c7736] text-lg">${product.salePrice?.toFixed(2)}</span>
-                                    <span className="text-xs text-muted-foreground line-through font-medium">${product.regularPrice.toFixed(2)}</span>
+                                    <span className="font-bold text-[#5c7736] text-lg">
+                                        {product.salePrice % 1 === 0 ? `$${product.salePrice}` : `$${product.salePrice?.toFixed(2)}`}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground line-through font-medium">
+                                        {product.regularPrice % 1 === 0 ? `$${product.regularPrice}` : `$${product.regularPrice.toFixed(2)}`}
+                                    </span>
                                 </>
                             ) : (
-                                <span className="font-bold text-[#5c7736] text-lg">${product.regularPrice.toFixed(2)}</span>
+                                <span className="font-bold text-[#5c7736] text-lg">
+                                    {product.regularPrice % 1 === 0 ? `$${product.regularPrice}` : `$${product.regularPrice.toFixed(2)}`}
+                                </span>
                             )}
                         </div>
 
