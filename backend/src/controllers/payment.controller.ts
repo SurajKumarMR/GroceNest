@@ -1,7 +1,12 @@
-
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
-import { createPaymentIntent, verifyWebhookSignature } from '../services/stripe.service';
+import { 
+    createPaymentIntent, 
+    verifyWebhookSignature,
+    createConnectAccount,
+    createAccountLink,
+    retrieveConnectAccount
+} from '../services/stripe.service';
 import prisma from '../utils/prisma';
 import Stripe from 'stripe';
 import { analyticsService } from '../services/analytics.service';
@@ -18,7 +23,7 @@ export const initPayment = async (req: AuthRequest, res: Response): Promise<void
 
         const order = await prisma.order.findUnique({
             where: { id: orderId },
-            include: { user: true }
+            include: { user: true, store: true }
         });
 
         if (!order || order.userId !== userId) {
@@ -34,10 +39,21 @@ export const initPayment = async (req: AuthRequest, res: Response): Promise<void
             return;
         }
 
-        const paymentIntent = await createPaymentIntent(Number(order.totalAmount), 'usd', {
-            orderId: order.id,
-            userId: userId
-        });
+        // Use Stripe Connect destination charge if store is onboarded
+        let connectedAccountId: string | undefined = undefined;
+        if (order.store && order.store.stripeAccountId && order.store.stripeOnboardingStatus === 'completed') {
+            connectedAccountId = order.store.stripeAccountId;
+        }
+
+        const paymentIntent = await createPaymentIntent(
+            Number(order.totalAmount), 
+            'usd', 
+            {
+                orderId: order.id,
+                userId: userId
+            },
+            connectedAccountId
+        );
 
         // Update order with payment intent ID
         await prisma.order.update({
@@ -54,6 +70,88 @@ export const initPayment = async (req: AuthRequest, res: Response): Promise<void
         });
     } catch (error) {
         console.error('Init payment error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const onboardStoreConnect = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { storeId } = req.body;
+        const userId = req.user?.userId;
+
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        const store = await prisma.store.findFirst({
+            where: { id: storeId, ownerId: userId }
+        });
+
+        if (!store) {
+            res.status(404).json({ error: 'Store not found or you are not the owner' });
+            return;
+        }
+
+        let accountId = store.stripeAccountId || '';
+        if (!accountId) {
+            const email = req.user?.email || store.email || undefined;
+            const account = await createConnectAccount(email);
+            accountId = account.id;
+
+            await prisma.store.update({
+                where: { id: store.id },
+                data: {
+                    stripeAccountId: accountId,
+                    stripeOnboardingStatus: 'pending'
+                }
+            });
+        }
+
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const returnUrl = `${frontendUrl}/payments/connect/callback?storeId=${store.id}`;
+        const refreshUrl = `${frontendUrl}/payments/connect/refresh?storeId=${store.id}`;
+
+        const accountLink = await createAccountLink(accountId, returnUrl, refreshUrl);
+
+        res.json({ url: accountLink.url });
+    } catch (error) {
+        console.error('Stripe Connect onboarding error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const onboardCallback = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { storeId } = req.query;
+
+        if (!storeId || typeof storeId !== 'string') {
+            res.status(400).json({ error: 'Invalid storeId' });
+            return;
+        }
+
+        const store = await prisma.store.findUnique({
+            where: { id: storeId }
+        });
+
+        if (!store || !store.stripeAccountId) {
+            res.status(404).json({ error: 'Store or Stripe account not found' });
+            return;
+        }
+
+        const account = await retrieveConnectAccount(store.stripeAccountId as string);
+        const onboardingStatus = account.details_submitted ? 'completed' : 'pending';
+
+        await prisma.store.update({
+            where: { id: store.id },
+            data: {
+                stripeOnboardingStatus: onboardingStatus
+            }
+        });
+
+        res.json({ status: onboardingStatus });
+    } catch (error) {
+        console.error('Stripe Connect callback error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };

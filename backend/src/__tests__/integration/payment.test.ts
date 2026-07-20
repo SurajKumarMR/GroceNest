@@ -24,10 +24,12 @@ function generateStripeSignature(payload: string, secret: string): string {
 
 describe('Stripe Webhook and Payment Integration Tests', () => {
     let customerId: string;
+    let merchantId: string;
     let storeId: string;
     let productId: string;
     let orderId: string;
     let authToken: string;
+    let merchantToken: string;
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_placeholder';
 
     beforeAll(async () => {
@@ -65,6 +67,8 @@ describe('Stripe Webhook and Payment Integration Tests', () => {
                 role: 'MERCHANT'
             }
         });
+        merchantId = merchant.id;
+        merchantToken = signToken({ userId: merchantId, email: merchant.email, role: merchant.role });
 
         const store = await prisma.store.create({
             data: {
@@ -272,6 +276,51 @@ describe('Stripe Webhook and Payment Integration Tests', () => {
 
             expect(res.status).toBe(400);
             expect(res.text).toContain('Webhook Error');
+        });
+    });
+
+    describe('Stripe Connect Onboarding Tests', () => {
+        it('should successfully initiate onboarding for a merchant store', async () => {
+            const res = await request(app)
+                .post('/api/payments/connect/onboard')
+                .set('Authorization', `Bearer ${merchantToken}`)
+                .send({ storeId });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toHaveProperty('url');
+            expect(res.body.url).toContain('connect.stripe.com');
+
+            // Verify store has account id and pending onboarding status in DB
+            const updatedStore = await prisma.store.findUnique({
+                where: { id: storeId }
+            });
+            expect(updatedStore?.stripeAccountId).toBeDefined();
+            expect(updatedStore?.stripeOnboardingStatus).toBe('pending');
+        });
+
+        it('should update status on callback', async () => {
+            const res = await request(app)
+                .get(`/api/payments/connect/callback?storeId=${storeId}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body).toHaveProperty('status');
+        });
+
+        it('should use connected account ID when initializing payment if completed', async () => {
+            // Update store status to completed
+            await prisma.store.update({
+                where: { id: storeId },
+                data: { stripeOnboardingStatus: 'completed' }
+            });
+
+            // Initialize payment
+            const res = await request(app)
+                .post('/api/payments/init')
+                .set('Authorization', `Bearer ${authToken}`)
+                .send({ orderId });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toHaveProperty('clientSecret');
         });
     });
 });

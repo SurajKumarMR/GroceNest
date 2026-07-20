@@ -49,6 +49,75 @@ router.post('/init', authenticate, paymentController.initPayment);
 
 /**
  * @openapi
+ * /api/payments/connect/onboard:
+ *   post:
+ *     summary: Generate a Stripe Connect onboarding link for a store
+ *     tags:
+ *       - Payments
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - storeId
+ *             properties:
+ *               storeId:
+ *                 type: string
+ *                 example: "store_123"
+ *     responses:
+ *       200:
+ *         description: Stripe Connect onboarding link generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 url:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Store not found or not owner
+ */
+router.post('/connect/onboard', authenticate, paymentController.onboardStoreConnect);
+
+/**
+ * @openapi
+ * /api/payments/connect/callback:
+ *   get:
+ *     summary: Callback endpoint redirected from Stripe Connect onboarding
+ *     tags:
+ *       - Payments
+ *     parameters:
+ *       - in: query
+ *         name: storeId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Stripe Connect status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: "completed"
+ *       400:
+ *         description: Invalid storeId
+ *       404:
+ *         description: Store not found
+ */
+router.get('/connect/callback', paymentController.onboardCallback);
+
+/**
+ * @openapi
  * /api/payments/webhook:
  *   post:
  *     summary: Stripe asynchronous webhook receiver
