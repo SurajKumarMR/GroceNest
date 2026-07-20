@@ -1,5 +1,6 @@
 import jwt, { SignOptions, Algorithm } from 'jsonwebtoken';
 import logger from './logger';
+import crypto from 'crypto';
 
 const JWT_PRIVATE_KEY = process.env.JWT_PRIVATE_KEY?.replace(/\\n/g, '\n');
 const JWT_PUBLIC_KEY = process.env.JWT_PUBLIC_KEY?.replace(/\\n/g, '\n');
@@ -52,8 +53,9 @@ export const verifyToken = (token: string) => {
 export const signRefreshToken = (payload: object) => {
     const secret = (JWT_PRIVATE_KEY || JWT_SECRET || 'refresh-secret') as string;
     const algorithm = (JWT_PRIVATE_KEY ? 'RS256' : 'HS256') as Algorithm;
-    return jwt.sign(payload, secret, { 
+    return jwt.sign({ ...payload, jti: crypto.randomUUID() }, secret, { 
         algorithm,
         expiresIn: '7d' 
     } as SignOptions);
 };
+

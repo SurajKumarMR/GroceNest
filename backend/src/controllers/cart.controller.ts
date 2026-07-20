@@ -3,6 +3,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../utils/prisma';
 import { cartItemSchema } from '../utils/validation';
+import { analyticsService } from '../services/analytics.service';
 
 export const getCart = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -140,6 +141,9 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<void> 
             where: { id: cart.id },
             include: { items: { include: { product: true } } }
         });
+
+        // Track cart addition
+        analyticsService.trackCartAddition(userId, product.storeId, product.id, quantity, Number(product.regularPrice));
 
         res.json(updatedCart);
 

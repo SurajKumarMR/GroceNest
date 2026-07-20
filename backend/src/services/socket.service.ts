@@ -3,6 +3,8 @@ import { Server as SocketServer } from 'socket.io';
 import * as http from 'http';
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger';
+import prisma from '../utils/prisma';
+import { analyticsService } from './analytics.service';
 
 let io: SocketServer;
 
@@ -46,18 +48,33 @@ export const initSocket = (server: http.Server) => {
         });
 
         // Driver sending location updates
-        socket.on('updateLocation', (data: { orderId: string, latitude: number, longitude: number, heading?: number }) => {
+        socket.on('updateLocation', async (data: { orderId: string, latitude: number, longitude: number, heading?: number }) => {
             const { orderId, latitude, longitude, heading } = data;
+            const userId = (socket as any).userId;
 
-            // Only drivers assigned to the order should be able to update location
-            // For now, we trust the client or we could verify driverId against DB
+            try {
+                const order = await prisma.order.findUnique({
+                    where: { id: orderId },
+                    select: { driverId: true }
+                });
 
-            io.to(`order_${orderId}`).emit('locationUpdated', {
-                latitude,
-                longitude,
-                heading,
-                timestamp: new Date()
-            });
+                if (!order || order.driverId !== userId) {
+                    socket.emit('error', 'Unauthorized');
+                    return;
+                }
+
+                io.to(`order_${orderId}`).emit('locationUpdated', {
+                    latitude,
+                    longitude,
+                    heading,
+                    timestamp: new Date()
+                });
+
+                // Track driver location update
+                analyticsService.trackDriverLocationUpdate(userId, latitude, longitude);
+            } catch (err) {
+                socket.emit('error', 'Internal server error');
+            }
         });
 
         socket.on('joinSupport', (data: { userId: string }) => {

@@ -4,9 +4,17 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../utils/prisma';
 import { OrderStatus } from '@prisma/client';
 import { notificationService } from '../services/notification.service';
+import { analyticsService } from '../services/analytics.service';
 
 export const getAvailableOrders = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
+        const userId = req.user?.userId;
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user || (user.role === 'DRIVER' && !user.isDriverApproved)) {
+            res.status(403).json({ error: 'Driver is not approved' });
+            return;
+        }
+
         const orders = await prisma.order.findMany({
             where: {
                 status: OrderStatus.READY,
@@ -35,6 +43,12 @@ export const acceptOrder = async (req: AuthRequest, res: Response): Promise<void
 
         if (!userId || !orderId || typeof orderId !== 'string') {
             res.status(400).json({ error: 'Invalid request' });
+            return;
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user || (user.role === 'DRIVER' && !user.isDriverApproved)) {
+            res.status(403).json({ error: 'Driver is not approved' });
             return;
         }
 
@@ -69,6 +83,9 @@ export const acceptOrder = async (req: AuthRequest, res: Response): Promise<void
             await notificationService.notifyOrderStatusChange(orderId, OrderStatus.OUT_FOR_DELIVERY, order.userId);
         }
 
+        // Track driver accepts order event
+        analyticsService.trackEvent('DRIVER_ORDER_ACCEPTED', userId, { orderId });
+
         res.json(updatedOrder);
     } catch (error) {
         console.error('Accept order error:', error);
@@ -83,6 +100,12 @@ export const deliverOrder = async (req: AuthRequest, res: Response): Promise<voi
 
         if (!userId || !orderId || typeof orderId !== 'string') {
             res.status(400).json({ error: 'Invalid request' });
+            return;
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user || (user.role === 'DRIVER' && !user.isDriverApproved)) {
+            res.status(403).json({ error: 'Driver is not approved' });
             return;
         }
 
@@ -116,6 +139,9 @@ export const deliverOrder = async (req: AuthRequest, res: Response): Promise<voi
             await notificationService.notifyOrderStatusChange(orderId, OrderStatus.DELIVERED, order.userId);
         }
 
+        // Track driver delivers order event
+        analyticsService.trackEvent('DRIVER_ORDER_DELIVERED', userId, { orderId });
+
         res.json(updatedOrder);
     } catch (error) {
         console.error('Deliver order error:', error);
@@ -126,6 +152,12 @@ export const deliverOrder = async (req: AuthRequest, res: Response): Promise<voi
 export const getMyDeliveries = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const userId = req.user?.userId as string;
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user || (user.role === 'DRIVER' && !user.isDriverApproved)) {
+            res.status(403).json({ error: 'Driver is not approved' });
+            return;
+        }
 
         const orders = await prisma.order.findMany({
             where: { driverId: userId },

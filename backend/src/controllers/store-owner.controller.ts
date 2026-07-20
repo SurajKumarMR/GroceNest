@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../utils/prisma';
 import { OrderStatus } from '@prisma/client';
 import { notificationService } from '../services/notification.service';
+import { analyticsService } from '../services/analytics.service';
 
 export const getMyStore = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -111,6 +112,9 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response): Promis
         if (order.userId) {
             await notificationService.notifyOrderStatusChange(orderId, status, order.userId);
         }
+
+        // Track order status update
+        analyticsService.trackEvent('ORDER_STATUS_UPDATED', userId, { orderId, status });
 
         res.json(updatedOrder);
     } catch (error) {
@@ -252,6 +256,9 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
                 stockQuantity
             }
         });
+
+        // Track product updated
+        analyticsService.trackProductUpdated(userId, store.id, updatedProduct.id, updatedProduct.name);
 
         res.json(updatedProduct);
     } catch (error) {

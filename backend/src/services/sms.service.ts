@@ -1,21 +1,32 @@
 import logger from '../utils/logger';
+import twilio from 'twilio';
 
-// Placeholder for SMS provider (e.g., Twilio / AWS SNS / Vonage)
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const fromPhone = process.env.TWILIO_PHONE_NUMBER;
+
+let twilioClient: twilio.Twilio | null = null;
+if (accountSid && authToken) {
+  twilioClient = twilio(accountSid, authToken);
+}
+
 export const smsService = {
   sendSMS: async (to: string, message: string) => {
     try {
-      if (process.env.NODE_ENV === 'development') {
+      if (!twilioClient || process.env.NODE_ENV === 'test') {
         logger.info(`[SMS MOCK] To: ${to}, Message: ${message}`);
         return { success: true, mock: true };
       }
       
-      // Real implementation would go here:
-      // const twilio = require('twilio')(sid, auth);
-      // await twilio.messages.create({ body: message, to, from: '+' });
+      const response = await twilioClient.messages.create({
+        body: message,
+        to,
+        from: fromPhone || '+1234567890'
+      });
       
-      logger.info(`SMS service triggered for ${to} (Implementation pending real API keys)`);
-      return { success: true };
-    } catch (error) {
+      logger.info(`SMS sent successfully to ${to}, SID: ${response.sid}`);
+      return { success: true, sid: response.sid };
+    } catch (error: any) {
       logger.error('Error sending SMS:', error);
       throw error;
     }

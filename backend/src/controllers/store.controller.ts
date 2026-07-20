@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../utils/prisma';
 import { storeSchema } from '../utils/validation';
+import { analyticsService } from '../services/analytics.service';
 
 export const createStore = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -36,6 +37,9 @@ export const createStore = async (req: AuthRequest, res: Response): Promise<void
                 longitude: storeData.longitude,
             },
         });
+
+        // Track store creation
+        analyticsService.trackStoreCreated(userId, store.id, store.name);
 
         res.status(201).json(store);
     } catch (error) {

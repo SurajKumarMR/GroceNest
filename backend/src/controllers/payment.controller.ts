@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { createPaymentIntent, verifyWebhookSignature } from '../services/stripe.service';
 import prisma from '../utils/prisma';
 import Stripe from 'stripe';
+import { analyticsService } from '../services/analytics.service';
 
 export const initPayment = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -44,6 +45,9 @@ export const initPayment = async (req: AuthRequest, res: Response): Promise<void
             data: { paymentIntentId: paymentIntent.id }
         });
 
+        // Track checkout started
+        await analyticsService.trackCheckoutStarted(userId, order.id, Number(order.totalAmount));
+
         res.json({
             clientSecret: paymentIntent.client_secret,
             paymentIntentId: paymentIntent.id
@@ -63,7 +67,14 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
     }
 
     let event: Stripe.Event;
-    const body = (req as any).rawBody || req.body;
+    let body: string | Buffer;
+    if ((req as any).rawBody) {
+        body = (req as any).rawBody;
+    } else if (Buffer.isBuffer(req.body)) {
+        body = req.body;
+    } else {
+        body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    }
 
     try {
         event = verifyWebhookSignature(body, sig as string);
@@ -86,6 +97,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
     if (event.type === 'payment_intent.succeeded') {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         const orderId = paymentIntent.metadata.orderId;
+        const metadataUserId = paymentIntent.metadata.userId;
 
         if (orderId) {
             await prisma.order.update({
@@ -100,10 +112,14 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
                     }
                 }
             });
+
+            // Track payment completed
+            await analyticsService.trackPaymentCompleted(metadataUserId, orderId, Number(paymentIntent.amount) / 100, paymentIntent.id);
         }
     } else if (event.type === 'payment_intent.payment_failed') {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         const orderId = paymentIntent.metadata.orderId;
+        const metadataUserId = paymentIntent.metadata.userId;
 
         if (orderId) {
             await prisma.order.update({
@@ -112,6 +128,14 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
                     paymentStatus: 'failed'
                 }
             });
+
+            // Track payment failed
+            await analyticsService.trackPaymentFailed(
+                metadataUserId,
+                orderId,
+                Number(paymentIntent.amount) / 100,
+                paymentIntent.last_payment_error?.message || 'Payment failed'
+            );
         }
     }
 

@@ -1,5 +1,15 @@
 import 'dotenv/config';
 import './utils/env';
+import * as Sentry from '@sentry/node';
+
+if (process.env.SENTRY_DSN) {
+    Sentry.init({
+        dsn: process.env.SENTRY_DSN,
+        environment: process.env.NODE_ENV || 'development',
+        tracesSampleRate: 0.1,
+    });
+}
+
 import express, { Express, Request, Response, NextFunction } from 'express';
 import path from 'path';
 import cors from 'cors';
@@ -8,6 +18,7 @@ import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import prisma from './utils/prisma';
 import logger from './utils/logger';
+import stripe from './services/stripe.service';
 
 // Middleware
 import http from 'http';
@@ -37,12 +48,14 @@ import paymentRoutes from './routes/payment.routes';
 import notificationRoutes from './routes/notification.routes';
 import reviewRoutes from './routes/review.routes';
 import adminRoutes from './routes/admin.routes';
+import analyticsRoutes from './routes/analytics.routes';
+import { setupSwagger } from './utils/swagger';
 import { rateLimit } from 'express-rate-limit';
 
 // Security: Rate Limiting
 const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Relaxed for dev
+    max: ['development', 'test'].includes(process.env.NODE_ENV || '') ? 10000 : 100, // Relaxed for dev/test
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many requests, please try again later.' }
@@ -50,7 +63,7 @@ const globalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
-    max: process.env.NODE_ENV === 'development' ? 100 : 10, // Max 10 attempts per hour in prod
+    max: ['development', 'test'].includes(process.env.NODE_ENV || '') ? 10000 : 10, // Max 10 attempts per hour in prod
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many authentication attempts, please try again in an hour.' }
@@ -58,30 +71,40 @@ const authLimiter = rateLimit({
 
 const orderLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'development' ? 100 : 10,
+    max: ['development', 'test'].includes(process.env.NODE_ENV || '') ? 10000 : 10,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many order attempts, please try again later.' }
 });
 
 const paymentLimiter = rateLimit({
-    windowMs: 15 * 1000, // 15 seconds (very tight)
-    max: process.env.NODE_ENV === 'development' ? 50 : 2, // Only 2 attempts per 15s in prod
+    windowMs: 15 * 1000, // 15 seconds
+    max: ['development', 'test'].includes(process.env.NODE_ENV || '') ? 10000 : 2, // Relaxed for dev/test
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many payment attempts, please try again in a few moments.' }
 });
 
 // Middleware
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'https://grocenest.co.uk'];
+const allowedOrigins = [
+  'https://grocenest.co.uk',
+  'https://merchant.grocenest.co.uk',
+  'https://admin.grocenest.co.uk',
+];
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps or curl)
+        // Allow requests with no origin (like mobile apps)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
-            callback(null, true);
+        
+        if (process.env.NODE_ENV === 'production') {
+            if (allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
         } else {
-            callback(new Error('Not allowed by CORS'));
+            // Dev/Test: allow all origins
+            callback(null, true);
         }
     },
     credentials: true,
@@ -90,12 +113,17 @@ app.use(cors({
 }));
 
 // Security: Helmet configuration for strict headers
+const isProduction = process.env.NODE_ENV === 'production';
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "https://js.stripe.com", "https://maps.googleapis.com", "'unsafe-inline'"],
-            styleSrc: ["'self'", "https://fonts.googleapis.com", "'unsafe-inline'"],
+            scriptSrc: isProduction
+                ? ["'self'", "https://js.stripe.com", "https://maps.googleapis.com"]
+                : ["'self'", "https://js.stripe.com", "https://maps.googleapis.com", "'unsafe-inline'"],
+            styleSrc: isProduction
+                ? ["'self'", "https://fonts.googleapis.com"]
+                : ["'self'", "https://fonts.googleapis.com", "'unsafe-inline'"],
             imgSrc: ["'self'", "data:", "https://*.stripe.com", "https://*.cloudinary.com", "https://maps.gstatic.com"],
             connectSrc: ["'self'", "https://api.stripe.com", "https://maps.googleapis.com", "https://*.firebaseio.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
@@ -118,17 +146,50 @@ app.disable('x-powered-by');
 
 app.use(globalLimiter);
 
-// Morgan with Winston integration
-const morganMiddleware = morgan(
-    ':method :url :status :res[content-length] - :response-time ms',
-    {
-        stream: {
-            write: (message) => logger.http(message.trim()),
-        },
-    }
-);
-app.use(morganMiddleware);
-app.use(morgan('dev'));
+// Request/Response logging middleware with masking
+app.use((req: Request, res: Response, next: NextFunction) => {
+    const start = Date.now();
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Helper to mask sensitive data
+    const maskSensitive = (obj: any): any => {
+        if (!obj || typeof obj !== 'object') return obj;
+        const copy = { ...obj };
+        const sensitiveKeys = ['password', 'passwordHash', 'token', 'refreshToken', 'mfaToken', 'twoFactorSecret', 'otpToken', 'clientSecret', 'stripePaymentMethodId', 'cardLastFour'];
+        for (const key of Object.keys(copy)) {
+            if (sensitiveKeys.includes(key)) {
+                copy[key] = '********';
+            } else if (typeof copy[key] === 'object') {
+                copy[key] = maskSensitive(copy[key]);
+            }
+        }
+        return copy;
+    };
+
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        const logData: any = {
+            method: req.method,
+            url: req.originalUrl,
+            status: res.statusCode,
+            duration: `${duration}ms`,
+            userId: (req as any).user?.userId || (req as any).userId,
+            ip: req.ip,
+            timestamp: new Date(),
+        };
+
+        if (!isProduction) {
+            logData.headers = req.headers;
+            if (req.body && Object.keys(req.body).length > 0) {
+                logData.body = maskSensitive(req.body);
+            }
+        }
+
+        logger.http(JSON.stringify(logData));
+    });
+
+    next();
+});
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.use(cookieParser());
@@ -154,9 +215,14 @@ app.use('/api/owner', storeOwnerRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/payments', paymentLimiter, paymentRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/marketing', marketingRoutes);
+
+// API Documentation UI
+setupSwagger(app);
 
 // Basic Route
 app.get('/', (req: Request, res: Response) => {
@@ -165,26 +231,63 @@ app.get('/', (req: Request, res: Response) => {
 
 // Health Check
 app.get('/health', async (req: Request, res: Response) => {
+    const health: {
+        status: string;
+        checks: {
+            database: string;
+            stripe: string;
+        };
+        timestamp: Date;
+    } = {
+        status: 'UP',
+        checks: {
+            database: 'UP',
+            stripe: 'UP'
+        },
+        timestamp: new Date()
+    };
+
+    // Database check with 2s timeout
+    const dbPromise = prisma.$queryRaw`SELECT 1`;
+    const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database timeout')), 2000)
+    );
+
     try {
-        await prisma.$queryRaw`SELECT 1`;
-        res.status(200).json({ 
-            status: 'UP', 
-            database: 'CONNECTED',
-            timestamp: new Date() 
-        });
-    } catch (error) {
-        logger.error('Health check failed:', error);
-        res.status(503).json({ 
-            status: 'DOWN', 
-            database: 'DISCONNECTED',
-            timestamp: new Date() 
-        });
+        await Promise.race([dbPromise, timeoutPromise]);
+    } catch (err) {
+        health.checks.database = 'DOWN';
+        health.status = 'DEGRADED';
     }
+
+    // Stripe check with 3s timeout
+    if (process.env.STRIPE_SECRET_KEY) {
+        const stripePromise = stripe.customers.list({ limit: 1 });
+        const stripeTimeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Stripe timeout')), 3000)
+        );
+
+        try {
+            await Promise.race([stripePromise, stripeTimeoutPromise]);
+        } catch (err) {
+            health.checks.stripe = 'DOWN';
+            health.status = 'DEGRADED';
+        }
+    } else {
+        health.checks.stripe = 'MOCK_MODE';
+    }
+
+    const statusCode = health.status === 'UP' ? 200 : 503;
+    res.status(statusCode).json(health);
 });
 
 // Error handling middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     logger.error(`${err.status || 500} - ${err.message} - ${req.originalUrl} - ${req.method} - ${req.ip}`);
+
+    if (process.env.SENTRY_DSN) {
+        Sentry.captureException(err);
+    }
 
     // Prevent sensitive info leakage in production
     const response = process.env.NODE_ENV === 'production'
@@ -196,6 +299,16 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 // Start Server
 if (process.env.NODE_ENV !== 'test') {
+    server.on('error', (err: any) => {
+        if (err.code === 'EADDRINUSE') {
+            logger.error(`❌ Port ${port} is already in use. Please check if another process is running or terminate it.`);
+            process.exit(1);
+        } else {
+            logger.error('❌ Server error:', err);
+            process.exit(1);
+        }
+    });
+
     server.listen(port, () => {
         logger.info(`[server]: Server is running at http://localhost:${port}`);
     });

@@ -10,6 +10,7 @@ import { encrypt, decrypt } from '../utils/encryption.utils';
 import { isPasswordPwned } from '../utils/pwned.utils';
 import { emailService } from '../services/email.service';
 import { smsService } from '../services/sms.service';
+import { analyticsService } from '../services/analytics.service';
 
 export const register = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -92,6 +93,9 @@ export const register = async (req: Request, res: Response): Promise<void> => {
             sameSite: 'strict',
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
+
+        // Track signup event
+        analyticsService.trackSignup(user.id, user.role);
 
         res.status(201).json({ 
             token, 
@@ -201,6 +205,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
             sameSite: 'strict',
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
+
+        // Track login event
+        analyticsService.trackLogin(user.id, user.role);
 
         res.status(200).json({ 
             token, 

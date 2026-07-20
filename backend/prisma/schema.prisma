@@ -98,6 +98,10 @@ model User {
   feedbacks       Feedback[]
   supportSessions SupportSession[]
   refreshTokens   RefreshToken[]
+  deviceTokens            DeviceToken[]
+  notificationLogs        NotificationLog[]
+  notificationPreference  NotificationPreference?
+  analyticsEvents         AnalyticsEvent[]
 }
 
 model RefreshToken {
@@ -588,4 +592,59 @@ model SupportMessage {
   content   String
   isAdmin   Boolean        @default(false)
   createdAt DateTime       @default(now())
+}
+
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String?  // 'ios', 'android', 'web'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model NotificationLog {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String    // 'push', 'sms', 'email'
+  channel     String    // 'fcm', 'twilio', 'sendgrid'
+  title       String?
+  body        String
+  status      String    // 'sent', 'failed'
+  error       String?
+  sentAt      DateTime  @default(now())
+  deliveredAt DateTime?
+
+  @@index([userId])
+  @@index([status])
+}
+
+model NotificationPreference {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     Boolean  @default(true)
+  sms       Boolean  @default(true)
+  push      Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model AnalyticsEvent {
+  id         String   @id @default(uuid())
+  eventName  String
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  properties Json?
+  timestamp  DateTime @default(now())
+
+  @@index([eventName])
+  @@index([timestamp])
+  @@index([userId])
 }
