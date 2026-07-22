@@ -1,0 +1,19 @@
+appId: com.grocenest.mobile
+---
+- launchApp
+- clearState
+
+# Step 1: Onboarding & Navigation to Login
+- assertVisible: "GroceNest"
+- tapOn: "Sign In"
+
+# Step 2: Login Form Entry
+- tapOn: "Email"
+- inputText: ${TEST_EMAIL}
+- tapOn: "Password"
+- inputText: ${TEST_PASSWORD}
+- tapOn: "Log In"
+
+# Step 3: Verify Successful Auth & Home Screen
+- assertVisible: "Browse Stores"
+- assertVisible: "Categories"

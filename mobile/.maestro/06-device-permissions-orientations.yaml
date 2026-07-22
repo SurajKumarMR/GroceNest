@@ -1,0 +1,16 @@
+appId: com.grocenest.mobile
+---
+# Step 1: Automatically Grant Permissions
+- grantPermission: "FINE_LOCATION"
+- grantPermission: "COARSE_LOCATION"
+- grantPermission: "POST_NOTIFICATIONS"
+
+- launchApp
+
+# Step 2: Device Orientation Switching (PORTRAIT -> LANDSCAPE -> PORTRAIT)
+- assertVisible: "GroceNest"
+- setOrientation: "LANDSCAPE"
+- assertVisible: "Stores"
+
+- setOrientation: "PORTRAIT"
+- assertVisible: "Stores"

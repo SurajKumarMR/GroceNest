@@ -1,0 +1,17 @@
+appId: com.grocenest.mobile
+---
+- launchApp
+
+# Step 1: Simulate Airplane Mode / Network Disconnection
+- toggleAirplaneMode
+- assertVisible: "You are currently offline"
+
+# Step 2: Graceful Degradation Verification
+# Cart items cached locally remain accessible without app crashes
+- tapOn: "Cart"
+- assertVisible: "Cart"
+- assertVisible: "Offline Mode - Reconnect to place order"
+
+# Step 3: Restore Network & Re-enable Actions
+- toggleAirplaneMode
+- assertVisible: "Connected"

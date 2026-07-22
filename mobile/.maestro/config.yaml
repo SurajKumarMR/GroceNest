@@ -1,0 +1,7 @@
+appId: com.grocenest.mobile
+---
+# Environment & Constants Configuration
+env:
+  TEST_EMAIL: "mobile-e2e@grocenest.co.uk"
+  TEST_PASSWORD: "MobilePassword123!"
+  API_BASE_URL: "http://localhost:8000"

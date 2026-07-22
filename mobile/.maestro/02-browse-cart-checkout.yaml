@@ -1,0 +1,31 @@
+appId: com.grocenest.mobile
+---
+- launchApp
+
+# Step 1: Browse Stores & Search Filter
+- tapOn: "Stores"
+- assertVisible: "Search stores..."
+- tapOn: "Search stores..."
+- inputText: "Fresh"
+- pressKey: "Enter"
+
+# Step 2: Select Store & Add Product to Cart
+- tapOn: "Fresh Grocery Store"
+- assertVisible: "Products"
+- tapOn:
+    text: "Add to Cart"
+    index: 0
+
+# Step 3: Cart Badge & Navigation to Cart
+- assertVisible: "Cart (1)"
+- tapOn: "Cart"
+
+# Step 4: Checkout & Order Placement
+- assertVisible: "Order Summary"
+- tapOn: "Proceed to Checkout"
+- assertVisible: "Select Address"
+- tapOn: "Place Order"
+
+# Step 5: Live Order Tracking Screen
+- assertVisible: "Order Confirmed"
+- assertVisible: "Status: PENDING"

@@ -1,0 +1,23 @@
+appId: com.grocenest.mobile
+---
+- launchApp
+
+# Step 1: Add Item to Cart
+- tapOn: "Stores"
+- tapOn:
+    text: "Add to Cart"
+    index: 0
+- assertVisible: "Cart (1)"
+
+# Step 2: Test Background/Foreground Transition Mid-Checkout
+- tapOn: "Cart"
+- assertVisible: "Proceed to Checkout"
+- backgroundApp: 10000
+- launchApp
+- assertVisible: "Proceed to Checkout"
+
+# Step 3: Test Force-Quit & Relaunch Cart Persistence
+- stopApp
+- launchApp
+- tapOn: "Cart"
+- assertVisible: "Cart (1)"

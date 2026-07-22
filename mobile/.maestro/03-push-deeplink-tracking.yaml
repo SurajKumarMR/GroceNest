@@ -1,0 +1,13 @@
+appId: com.grocenest.mobile
+---
+# Step 1: Test Store Deep-Link
+- openLink: "grocenest://store/sec-store-1"
+- assertVisible: "Sec Store 1"
+
+# Step 2: Test Order Tracking Deep-Link
+- openLink: "grocenest://order/gns-order-101"
+- assertVisible: "Order #gns-order-101"
+
+# Step 3: Simulated Push Notification Tap Simulation
+- openLink: "grocenest://order/gns-order-101?status=OUT_FOR_DELIVERY"
+- assertVisible: "OUT FOR DELIVERY"
