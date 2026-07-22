@@ -47,14 +47,17 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         const phoneVerificationCode = Math.floor(100000 + Math.random() * 900000).toString();
         
         // PII Encryption for phone
+        const sanitize = (str: string) => str.replace(/<\/?[^>]+(>|$)/g, '').trim();
+        const cleanFirstName = sanitize(firstName);
+        const cleanLastName = sanitize(lastName);
         const encryptedPhone = phone ? encrypt(phone) : null;
 
         const user = await prisma.user.create({
             data: {
                 email,
                 passwordHash: hashedPassword,
-                firstName,
-                lastName,
+                firstName: cleanFirstName,
+                lastName: cleanLastName,
                 phone: encryptedPhone,
                 phoneVerificationCode,
                 phoneVerified: false,

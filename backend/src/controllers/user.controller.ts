@@ -26,8 +26,8 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
             return;
         }
 
-        const { passwordHash, ...userWithoutPassword } = user;
-        res.json(userWithoutPassword);
+        const { passwordHash, twoFactorSecret, ...userWithoutSensitive } = user;
+        res.json(userWithoutSensitive);
     } catch (error) {
         console.error('Get profile error:', error);
         res.status(500).json({ error: 'Internal server error' });
