@@ -76,9 +76,9 @@ export default function RegisterPage() {
     };
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-900">
+        <main role="main" className="flex min-h-screen flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-900">
             <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-xl shadow-lg dark:bg-slate-800">
-                <div className="flex flex-col items-center">
+                <header role="banner" className="flex flex-col items-center">
                     <Link href="/" className="flex items-center space-x-2 mb-6">
                         <ShoppingBag className="h-8 w-8 text-primary" />
                         <span className="font-bold text-2xl tracking-tight">GroceNest</span>
@@ -92,7 +92,7 @@ export default function RegisterPage() {
                             sign in to existing account
                         </Link>
                     </p>
-                </div>
+                </header>
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     <div className="space-y-4 rounded-md shadow-sm">
                         <div className="grid grid-cols-2 gap-4">
@@ -177,6 +177,6 @@ export default function RegisterPage() {
                     </div>
                 </form>
             </div>
-        </div>
+        </main>
     );
 }
