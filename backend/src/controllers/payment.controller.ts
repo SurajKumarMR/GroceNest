@@ -181,14 +181,17 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
         return;
     }
 
-    // Idempotency check: Ensure we haven't processed this event before
-    const existingEvent = await (prisma as any).processedWebhook.findUnique({
-        where: { eventId: event.id }
-    });
-
-    if (existingEvent) {
-        res.json({ received: true, alreadyProcessed: true });
-        return;
+    // Idempotency check & atomic event reservation
+    try {
+        await (prisma as any).processedWebhook.create({
+            data: { eventId: event.id }
+        });
+    } catch (e: any) {
+        if (e.code === 'P2002') {
+            res.json({ received: true, alreadyProcessed: true });
+            return;
+        }
+        throw e;
     }
 
     // Handle the event
@@ -236,11 +239,6 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
             );
         }
     }
-
-    // Mark event as processed
-    await (prisma as any).processedWebhook.create({
-        data: { eventId: event!.id }
-    });
 
     res.json({ received: true });
 };

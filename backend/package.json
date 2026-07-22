@@ -10,6 +10,7 @@
     "test:integration": "jest --testPathPatterns='__tests__/integration'",
     "test:unit": "jest --testPathPatterns='__tests__/unit'",
     "test:migration": "jest --testPathPatterns='migration' --testTimeout 120000",
+    "test:perf": "jest --testPathPatterns='__tests__/performance'",
     "audit": "npm audit",
     "security:audit": "npm audit --audit-level=high"
   },
@@ -48,6 +49,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/autocannon": "^7.12.7",
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
@@ -64,6 +66,7 @@
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/winston": "^2.4.4",
+    "autocannon": "^8.0.0",
     "jest": "^30.2.0",
     "nodemon": "^3.1.11",
     "pg": "^8.22.0",
