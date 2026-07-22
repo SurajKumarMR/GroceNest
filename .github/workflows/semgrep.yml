@@ -1,0 +1,20 @@
+name: Semgrep SAST Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  semgrep:
+    name: Semgrep OWASP Scan
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep SAST
+        run: semgrep scan --config p/owasp-top-10 --config p/typescript --error

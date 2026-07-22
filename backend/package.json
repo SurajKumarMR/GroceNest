@@ -10,7 +10,11 @@
     "test:integration": "jest --testPathPatterns='__tests__/integration'",
     "test:unit": "jest --testPathPatterns='__tests__/unit'",
     "test:migration": "jest --testPathPatterns='migration' --testTimeout 120000",
-    "audit": "npm audit"
+    "audit": "npm audit",
+    "security:audit": "npm audit --audit-level=high"
+  },
+  "overrides": {
+    "uuid": "^11.1.0"
   },
   "keywords": [],
   "author": "",

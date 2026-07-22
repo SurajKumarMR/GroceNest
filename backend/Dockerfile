@@ -27,6 +27,8 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/tsconfig.json ./
 
+USER node
+
 EXPOSE 8000
 
 CMD ["npx", "ts-node", "src/index.ts"]

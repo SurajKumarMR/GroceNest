@@ -1,0 +1,42 @@
+name: Docker Security Scan (Trivy)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  trivy-scan:
+    name: Trivy Container Vulnerability Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Backend Docker Image
+        run: docker build -t grocenest-backend:test ./backend
+
+      - name: Run Trivy Scan on Backend Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'grocenest-backend:test'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Build Web Docker Image
+        run: docker build -t grocenest-web:test ./web
+
+      - name: Run Trivy Scan on Web Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'grocenest-web:test'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
