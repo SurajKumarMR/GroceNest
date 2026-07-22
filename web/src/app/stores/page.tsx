@@ -34,7 +34,8 @@ export default function StoresPage() {
         fetchStores();
     }, []);
 
-    const filteredStores = stores.filter((store) =>
+    const storeList = Array.isArray(stores) ? stores : [];
+    const filteredStores = storeList.filter((store) =>
         store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         store.cuisineTypes.some(type => type.toLowerCase().includes(searchQuery.toLowerCase()))
     );
