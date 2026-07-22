@@ -67,6 +67,24 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
         // Use transaction to ensure atomicity
         await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             for (const [storeId, items] of Object.entries(itemsByStore)) {
+                // Verify and deduct stock atomically for tracked inventory items
+                for (const item of items) {
+                    if (item.product.trackInventory && !item.product.allowBackorder) {
+                        const updated = await (tx.product as any).updateMany({
+                            where: {
+                                id: item.productId,
+                                stockQuantity: { gte: item.quantity },
+                            },
+                            data: {
+                                stockQuantity: { decrement: item.quantity },
+                            },
+                        });
+                        if (updated.count === 0) {
+                            throw new Error(`Insufficient stock for product '${item.product.name}'`);
+                        }
+                    }
+                }
+
                 const orderItemsData = items.map(item => {
                     const price = item.productVariant ? Number(item.productVariant.price) : Number(item.product.regularPrice);
                     const itemSubtotal = price * item.quantity;
@@ -121,15 +139,23 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
                 });
                 createdOrders.push(order);
 
-                // Collect notification data instead of performing them inside (Prisma Pitfall: using global prisma inside tx)
-                const store = await tx.store.findUnique({ where: { id: storeId }, select: { ownerId: true } });
-                if (store?.ownerId) {
-                    notificationData.push({ storeId, ownerId: store.ownerId, orderNumber });
+                // Fetch store owner for notification
+                const store = await (tx.store as any).findUnique({
+                    where: { id: storeId },
+                    select: { ownerId: true }
+                });
+
+                if (store) {
+                    notificationData.push({
+                        storeId,
+                        ownerId: store.ownerId,
+                        orderNumber: order.orderNumber
+                    });
                 }
             }
 
             // Clear Cart
-            await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+            await (tx.cartItem as any).deleteMany({ where: { cartId: cart.id } });
         }, { timeout: 15000 }); // Increased timeout to 15s
 
         // Send notifications outside transaction for better reliability and performance
@@ -154,7 +180,11 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
 
         res.status(201).json({ message: 'Orders created successfully', orders: createdOrders });
 
-    } catch (error) {
+    } catch (error: any) {
+        if (error instanceof Error && error.message.includes('Insufficient stock')) {
+            res.status(400).json({ error: error.message });
+            return;
+        }
         console.error('Create order error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -182,7 +212,7 @@ export const autoCancelOrders = async (): Promise<void> => {
                         create: {
                             status: OrderStatus.CANCELLED,
                             note: 'Auto-cancelled: No response from store within 10 minutes',
-                            createdBy: 'SYSTEM'
+                            createdBy: null
                         }
                     }
                 }

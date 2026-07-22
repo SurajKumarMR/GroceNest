@@ -44,6 +44,7 @@ export const storeSchema = z.object({
 
 export const productSchema = z.object({
     storeId: z.string().uuid(),
+    categoryId: z.string().uuid().optional(),
     name: z.string().min(2),
     slug: z.string().min(2),
     description: z.string().optional(),

@@ -83,57 +83,55 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<void> 
             }
         }
 
-        let cart = await prisma.cart.findUnique({ where: { userId } });
-        if (!cart) {
-            cart = await prisma.cart.create({ data: { userId } });
-        }
-
-        // Upsert cart item
-        // Note: This logic assumes we add to existing quantity or you can replace it. 
-        // Here we will implement upsert to add or update.
-
-        // Check if item exists
-        const existingItem = await prisma.cartItem.findUnique({
-            where: {
-                cartId_productId_productVariantId: {
-                    cartId: cart.id,
-                    productId,
-                    productVariantId: productVariantId || "", // productVariantId can be null, but composite key handling might be tricky with nulls in Prisma unique constraint. 
-                    // Actually, in prisma schema: @@unique([cartId, productId, productVariantId])
-                    // If productVariantId is null, Prisma handles it if the DB supports null in unique constraints (Postgres does, treating nulls as distinct unless NULLS NOT DISTINCT). 
-                    // However, Prisma Client `findUnique` types might expect strict matching.
-                    // Let's use findFirst for safety if variant is involved or just simple upsert if possible.
-                }
-            } as any // Casting to avoid complex type check for now or handle valid inputs
+        const cart = await prisma.cart.upsert({
+            where: { userId },
+            create: { userId },
+            update: {},
         });
 
-        // To simplify for this phase, let's just use create or update logic manually
-        // Since unique constraint keys need to be exact.
+        try {
+            const item = await prisma.cartItem.findFirst({
+                where: {
+                    cartId: cart.id,
+                    productId,
+                    productVariantId: productVariantId || null,
+                },
+            });
 
-        // Let's rely on explicit findFirst then update/create
-        const item = await prisma.cartItem.findFirst({
-            where: {
-                cartId: cart.id,
-                productId,
-                productVariantId: productVariantId || null
+            if (item) {
+                await prisma.cartItem.update({
+                    where: { id: item.id },
+                    data: { quantity: item.quantity + quantity },
+                });
+            } else {
+                await prisma.cartItem.create({
+                    data: {
+                        cartId: cart.id,
+                        productId,
+                        productVariantId,
+                        storeId: product.storeId,
+                        quantity,
+                    },
+                });
             }
-        });
-
-        if (item) {
-            await prisma.cartItem.update({
-                where: { id: item.id },
-                data: { quantity: item.quantity + quantity }
-            });
-        } else {
-            await prisma.cartItem.create({
-                data: {
-                    cartId: cart.id,
-                    productId,
-                    productVariantId,
-                    storeId: product.storeId, // Cart items are grouped by store implicitly
-                    quantity
+        } catch (err: any) {
+            if (err.code === 'P2002') {
+                const existing = await prisma.cartItem.findFirst({
+                    where: {
+                        cartId: cart.id,
+                        productId,
+                        productVariantId: productVariantId || null,
+                    },
+                });
+                if (existing) {
+                    await prisma.cartItem.update({
+                        where: { id: existing.id },
+                        data: { quantity: existing.quantity + quantity },
+                    });
                 }
-            });
+            } else {
+                throw err;
+            }
         }
 
         // Return updated cart
@@ -172,4 +170,37 @@ export const removeFromCart = async (req: AuthRequest, res: Response): Promise<v
         console.error('Remove from cart error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
-}
+};
+
+export const updateCartItemQuantity = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId;
+        const { itemId } = req.params as { itemId: string };
+        const { quantity } = req.body;
+
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        if (typeof quantity !== 'number' || quantity <= 0) {
+            res.status(400).json({ error: 'Quantity must be a positive integer' });
+            return;
+        }
+
+        const updatedItem = await prisma.cartItem.update({
+            where: { id: itemId },
+            data: { quantity }
+        });
+
+        const updatedCart = await prisma.cart.findUnique({
+            where: { id: updatedItem.cartId },
+            include: { items: { include: { product: true } } }
+        });
+
+        res.json(updatedCart);
+    } catch (error) {
+        console.error('Update cart item quantity error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};

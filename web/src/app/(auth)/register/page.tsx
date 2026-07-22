@@ -29,11 +29,45 @@ export default function RegisterPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
-        setLoading(true);
+        
+        // Client-side validation matching server-side rules exactly
+        if (formData.firstName.trim().length < 2) {
+            setError("First name must be at least 2 characters long");
+            return;
+        }
+        if (formData.lastName.trim().length < 2) {
+            setError("Last name must be at least 2 characters long");
+            return;
+        }
+        if (!/\S+@\S+\.\S+/.test(formData.email)) {
+            setError("Invalid email address");
+            return;
+        }
+        if (formData.password.length < 8) {
+            setError("Password must be at least 8 characters long");
+            return;
+        }
+        if (!/[A-Z]/.test(formData.password)) {
+            setError("Password must contain at least one uppercase letter");
+            return;
+        }
+        if (!/[0-9]/.test(formData.password)) {
+            setError("Password must contain at least one number");
+            return;
+        }
+        if (!/[^A-Za-z0-9]/.test(formData.password)) {
+            setError("Password must contain at least one special character");
+            return;
+        }
+        if (formData.phone && !/^\+44[0-9]{10}$/.test(formData.phone)) {
+            setError("Invalid UK phone number format (+44xxxxxxxxxx)");
+            return;
+        }
 
+        setLoading(true);
         try {
             const { data } = await api.post("/auth/register", formData);
-            login(data.token, data.user);
+            login(data.token, data.refreshToken, data.user);
         } catch (err: any) {
             setError(err.response?.data?.error || "Registration failed");
         } finally {

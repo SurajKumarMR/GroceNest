@@ -23,6 +23,9 @@ describe('Analytics & Business Metrics Integration Tests', () => {
     let customerId: string;
     let adminId: string;
 
+    let storeId: string;
+    let orderId: string;
+
     beforeAll(async () => {
         // Register standard customer
         const customerRes = await request(app)
@@ -58,9 +61,47 @@ describe('Analytics & Business Metrics Integration Tests', () => {
         
         // Generate a new token with the correct ADMIN role
         adminToken = signToken({ userId: adminId, email: adminEmail, role: 'ADMIN' });
+
+        // Create a Store and a paid Order to cover business metrics performance loop
+        const store = await prisma.store.create({
+            data: {
+                name: 'Analytics Store',
+                slug: `analytics-store-${Date.now()}`,
+                ownerId: adminId,
+                cuisineTypes: ['Grocery'],
+                streetAddress: '123 Analytics Rd',
+                city: 'Sheffield',
+                postalCode: 'S1 1AA',
+                country: 'UK',
+                latitude: 53.3811,
+                longitude: -1.4701
+            }
+        });
+        storeId = store.id;
+
+        const order = await (prisma.order as any).create({
+            data: {
+                orderNumber: `GNANALYTICS-${Date.now()}`,
+                deliveryOTP: '1111',
+                userId: customerId,
+                storeId,
+                subtotal: 20.00,
+                deliveryFee: 3.50,
+                taxAmount: 1.60,
+                totalAmount: 25.10,
+                paymentStatus: 'paid',
+                status: 'DELIVERED',
+                driverAssignedAt: new Date(Date.now() - 30 * 60 * 1000), // 30 mins ago
+                deliveredAt: new Date(),
+            }
+        });
+        orderId = order.id;
     });
 
     afterAll(async () => {
+        await prisma.orderStatusHistory.deleteMany({ where: { orderId } }).catch(() => {});
+        await prisma.order.deleteMany({ where: { id: orderId } }).catch(() => {});
+        await prisma.store.deleteMany({ where: { id: storeId } }).catch(() => {});
         await prisma.analyticsEvent.deleteMany({
             where: { userId: { in: [customerId, adminId] } }
         }).catch(() => {});
@@ -88,11 +129,25 @@ describe('Analytics & Business Metrics Integration Tests', () => {
         
         expect(res.status).toBe(200);
         expect(res.body).toHaveProperty('summary');
-        expect(res.body.summary).toHaveProperty('totalRevenue');
-        expect(res.body.summary).toHaveProperty('orderVolume');
-        expect(res.body.summary).toHaveProperty('averageOrderValue');
+        expect(res.body.summary.totalRevenue).toBeGreaterThan(0);
+        expect(res.body.summary.averageDeliveryTimeMinutes).toBeGreaterThan(0);
         expect(res.body).toHaveProperty('storePerformance');
+        expect(res.body.storePerformance.length).toBeGreaterThan(0);
+        expect(res.body.storePerformance[0].revenue).toBe(25.10);
         expect(res.body).toHaveProperty('recentEvents');
+    });
+
+    it('should handle internal server errors in business metrics', async () => {
+        const findUniqueSpy = jest.spyOn(prisma.user, 'findUnique').mockRejectedValueOnce(new Error('Database breakdown'));
+        
+        const res = await request(app)
+            .get('/api/analytics/metrics')
+            .set('Authorization', `Bearer ${adminToken}`);
+            
+        expect(res.status).toBe(500);
+        expect(res.body.error).toBe('Internal server error');
+        
+        findUniqueSpy.mockRestore();
     });
 
     it('should correctly log events into the database via analyticsService', async () => {

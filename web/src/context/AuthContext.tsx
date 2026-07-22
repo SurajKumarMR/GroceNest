@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 interface AuthContextType {
     user: User | null;
     loading: boolean;
-    login: (token: string, user: User) => void;
+    login: (token: string, refreshToken: string | null, user: User) => void;
     logout: () => void;
     isAuthenticated: boolean;
 }
@@ -33,6 +33,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 } catch (error) {
                     console.error("Auth check failed", error);
                     localStorage.removeItem('token');
+                    localStorage.removeItem('refreshToken');
                 }
             }
             setLoading(false);
@@ -41,14 +42,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         checkAuth();
     }, []);
 
-    const login = (token: string, userData: User) => {
+    const login = (token: string, refreshToken: string | null, userData: User) => {
         localStorage.setItem('token', token);
+        if (refreshToken) {
+            localStorage.setItem('refreshToken', refreshToken);
+        }
         setUser(userData);
         router.push('/stores'); // Redirect to stores after login
     };
 
     const logout = () => {
         localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         setUser(null);
         router.push('/login');
     };

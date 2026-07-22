@@ -81,7 +81,7 @@ export function ProductCard({ product }: ProductCardProps) {
                             {hasDiscount ? (
                                 <>
                                     <span className="font-bold text-[#5c7736] text-lg">
-                                        {product.salePrice % 1 === 0 ? `$${product.salePrice}` : `$${product.salePrice?.toFixed(2)}`}
+                                        {product.salePrice! % 1 === 0 ? `$${product.salePrice}` : `$${product.salePrice!.toFixed(2)}`}
                                     </span>
                                     <span className="text-xs text-muted-foreground line-through font-medium">
                                         {product.regularPrice % 1 === 0 ? `$${product.regularPrice}` : `$${product.regularPrice.toFixed(2)}`}

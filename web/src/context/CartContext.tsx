@@ -11,6 +11,7 @@ interface CartContextType {
     loading: boolean;
     addToCart: (productId: string, quantity: number, productVariantId?: string) => Promise<void>;
     removeFromCart: (itemId: string) => Promise<void>;
+    updateQuantity: (itemId: string, quantity: number) => Promise<void>;
     refreshCart: () => Promise<void>;
     itemCount: number;
 }
@@ -65,10 +66,21 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
+    const updateQuantity = async (itemId: string, quantity: number) => {
+        if (!user) return;
+        try {
+            await api.put(`/cart/items/${itemId}`, { quantity });
+            await refreshCart();
+        } catch (error) {
+            console.error("Update quantity failed", error);
+            throw error;
+        }
+    };
+
     const itemCount = cart?.items.reduce((acc, item) => acc + item.quantity, 0) || 0;
 
     return (
-        <CartContext.Provider value={{ cart, loading, addToCart, removeFromCart, refreshCart, itemCount }}>
+        <CartContext.Provider value={{ cart, loading, addToCart, removeFromCart, updateQuantity, refreshCart, itemCount }}>
             {children}
         </CartContext.Provider>
     );

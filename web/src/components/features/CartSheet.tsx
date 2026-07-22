@@ -11,39 +11,17 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
 export function CartSheet() {
-    const { cart, itemCount, addToCart, removeFromCart } = useCart();
+    const { cart, itemCount, addToCart, removeFromCart, updateQuantity } = useCart();
     const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
 
     const handleUpdateQuantity = async (productId: string, currentQty: number, change: number, itemId: string) => {
         setLoadingItemId(itemId);
         try {
-            if (currentQty + change <= 0) {
+            const nextQty = currentQty + change;
+            if (nextQty <= 0) {
                 await removeFromCart(itemId);
             } else {
-                // Since our addToCart adds to existing, we just add 1 or -1? 
-                // Wait, logic in backend: 
-                // `addToCart` controller: 
-                // if exists: quantity += req.body.quantity
-                // if req.body.quantity is negative? Validation schema said positive.
-                // Ah, I need an "updateCartItem" endpoint or just remove and re-add?
-                // Checking backend validation: `quantity: z.number().int().positive()`
-                // So I can only INCREASE quantity via `addToCart`.
-                // To decrease, I currently only have `removeFromCart`.
-                // I should have implemented `updateCartItem`.
-
-                // WORKAROUND for now: 
-                // If adding: calls addToCart(id, 1) -> nice.
-                // If removing: I don't have an endpoint to decrement 1 safely without removing all if I didn't verify logic.
-                // Let's assume for this MVP I only support "Add" or "Remove".
-                // OR I can use `addToCart` and hope it handles negative? No, schema blocks it.
-
-                // Actually, I should probably just implement "Add" (+1) and "Remove Item".
-                // Decrementing via API requires logic change or new endpoint.
-                // Let's check `cart.controller.ts` logic again.
-
-                if (change > 0) {
-                    await addToCart(productId, change);
-                }
+                await updateQuantity(itemId, nextQty);
             }
         } catch (e) {
             console.error(e);
@@ -102,7 +80,7 @@ export function CartSheet() {
                                                 <Button
                                                     variant="outline" size="icon" className="h-6 w-6"
                                                     onClick={() => handleUpdateQuantity(item.productId, item.quantity, -1, item.id)}
-                                                    disabled={item.quantity <= 1 || !!loadingItemId}
+                                                    disabled={!!loadingItemId}
                                                 >
                                                     <Minus className="h-3 w-3" />
                                                 </Button>

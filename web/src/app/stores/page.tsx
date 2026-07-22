@@ -14,15 +14,18 @@ import { Header } from "@/components/layout/Header";
 export default function StoresPage() {
     const [stores, setStores] = useState<Store[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
 
     useEffect(() => {
         const fetchStores = async () => {
             try {
+                setError(null);
                 const { data } = await api.get<Store[]>("/stores");
                 setStores(data);
-            } catch (error) {
-                console.error("Failed to fetch stores", error);
+            } catch (err) {
+                console.error("Failed to fetch stores", err);
+                setError("Failed to load stores. Please try again later.");
             } finally {
                 setLoading(false);
             }
@@ -57,6 +60,10 @@ export default function StoresPage() {
                         {Array.from({ length: 8 }).map((_, i) => (
                             <StoreCardSkeleton key={i} />
                         ))}
+                    </div>
+                ) : error ? (
+                    <div className="text-center py-12">
+                        <p className="text-lg text-destructive">{error}</p>
                     </div>
                 ) : filteredStores.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">

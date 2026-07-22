@@ -11,7 +11,7 @@ export interface Notification {
     type: "order" | "promotion" | "system" | "review";
     title: string;
     message: string;
-    data: any;
+    data: unknown;
     isRead: boolean;
     createdAt: string;
 }
@@ -35,6 +35,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
     useEffect(() => {
+        const fetchNotifications = async () => {
+            try {
+                const { data } = await api.get<Notification[]>("/notifications");
+                setNotifications(data);
+            } catch (error) {
+                console.error("Fetch notifications error:", error);
+            }
+        };
+
         if (isAuthenticated && user) {
             const token = localStorage.getItem("token");
             if (token) {
@@ -55,19 +64,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 fetchNotifications();
             }
         } else {
-            setNotifications([]);
+            Promise.resolve().then(() => setNotifications([]));
             socketService.disconnect();
         }
     }, [isAuthenticated, user]);
 
-    const fetchNotifications = async () => {
-        try {
-            const { data } = await api.get<Notification[]>("/notifications");
-            setNotifications(data);
-        } catch (error) {
-            console.error("Fetch notifications error:", error);
-        }
-    };
 
     const markAsRead = async (id: string) => {
         try {

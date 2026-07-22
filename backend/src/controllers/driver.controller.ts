@@ -5,6 +5,7 @@ import prisma from '../utils/prisma';
 import { OrderStatus } from '@prisma/client';
 import { notificationService } from '../services/notification.service';
 import { analyticsService } from '../services/analytics.service';
+import { isValidStatusTransition } from '../utils/order-status';
 
 export const getAvailableOrders = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -111,11 +112,16 @@ export const deliverOrder = async (req: AuthRequest, res: Response): Promise<voi
 
         const order = await prisma.order.findUnique({
             where: { id: orderId },
-            select: { id: true, driverId: true, userId: true }
+            select: { id: true, driverId: true, userId: true, status: true }
         });
 
         if (!order || order.driverId !== userId) {
             res.status(403).json({ error: 'Not authorized or order not found' });
+            return;
+        }
+
+        if (!isValidStatusTransition(order.status, OrderStatus.DELIVERED)) {
+            res.status(400).json({ error: `Cannot transition order status from ${order.status} to DELIVERED` });
             return;
         }
 

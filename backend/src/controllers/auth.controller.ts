@@ -609,7 +609,7 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
-        const payload: any = verifyToken(refreshToken);
+        const payload: any = verifyToken(refreshToken, 'refresh');
         if (!payload || !payload.userId) {
             res.status(401).json({ error: 'Invalid refresh token' });
             return;

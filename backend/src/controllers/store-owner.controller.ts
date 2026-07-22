@@ -5,6 +5,7 @@ import prisma from '../utils/prisma';
 import { OrderStatus } from '@prisma/client';
 import { notificationService } from '../services/notification.service';
 import { analyticsService } from '../services/analytics.service';
+import { isValidStatusTransition } from '../utils/order-status';
 
 export const getMyStore = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -91,6 +92,11 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response): Promis
 
         if (order.store.ownerId !== userId) {
             res.status(403).json({ error: 'Not authorized to update this order' });
+            return;
+        }
+
+        if (!isValidStatusTransition(order.status, status as OrderStatus)) {
+            res.status(400).json({ error: `Cannot transition order status from ${order.status} to ${status}` });
             return;
         }
 

@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 export function StoreCardSkeleton() {
     return (
-        <Card className="overflow-hidden h-full flex flex-col border-0 shadow-md">
+        <Card className="overflow-hidden h-full flex flex-col border-0 shadow-md" data-testid="store-card-skeleton">
             <div className="relative h-48 w-full">
                 <Skeleton className="h-full w-full" />
             </div>

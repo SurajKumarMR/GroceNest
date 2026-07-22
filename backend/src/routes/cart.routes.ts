@@ -1,6 +1,6 @@
 
 import { Router } from 'express';
-import { getCart, addToCart, removeFromCart } from '../controllers/cart.controller';
+import { getCart, addToCart, removeFromCart, updateCartItemQuantity } from '../controllers/cart.controller';
 import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -83,5 +83,43 @@ router.post('/items', authenticate, addToCart);
  *         description: Unauthorized
  */
 router.delete('/items/:itemId', authenticate, removeFromCart);
+
+/**
+ * @openapi
+ * /api/cart/items/{itemId}:
+ *   put:
+ *     summary: Update quantity of an item in the shopping cart
+ *     tags:
+ *       - Cart
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: itemId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Unique ID of the cart item to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - quantity
+ *             properties:
+ *               quantity:
+ *                 type: integer
+ *                 example: 3
+ *     responses:
+ *       200:
+ *         description: Item quantity updated successfully, returns the updated cart
+ *       400:
+ *         description: Validation failed
+ *       401:
+ *         description: Unauthorized
+ */
+router.put('/items/:itemId', authenticate, updateCartItemQuantity);
 
 export default router;

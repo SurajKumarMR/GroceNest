@@ -3,6 +3,12 @@ import { io, Socket } from "socket.io-client";
 
 let socket: Socket | null = null;
 
+export interface LocationUpdateData {
+    latitude: number;
+    longitude: number;
+    heading?: number;
+}
+
 export const socketService = {
     connect: (token: string) => {
         if (socket?.connected) return socket;
@@ -30,7 +36,7 @@ export const socketService = {
         socket?.emit("joinOrder", orderId);
     },
 
-    onLocationUpdated: (callback: (data: any) => void) => {
+    onLocationUpdated: (callback: (data: LocationUpdateData) => void) => {
         socket?.on("locationUpdated", callback);
     },
 

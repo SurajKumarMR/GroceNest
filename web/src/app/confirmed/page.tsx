@@ -9,14 +9,10 @@ import { useEffect, useState } from "react";
 
 export default function OrderConfirmedPage() {
     const { user } = useAuth();
-    const [orderNumber, setOrderNumber] = useState("");
-
-    useEffect(() => {
-        // Generate a random order number for display purposes
-        // In a real app, this would be passed via query param or fetched from an API
+    const [orderNumber] = useState(() => {
         const randomString = Math.random().toString(36).substring(2, 8).toUpperCase();
-        setOrderNumber(`ORD-${randomString}`);
-    }, []);
+        return `ORD-${randomString}`;
+    });
 
     return (
         <div className="min-h-screen bg-[#f8f9f6] flex flex-col">

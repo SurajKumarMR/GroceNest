@@ -186,12 +186,26 @@ describe('Driver Dispatch & Acceptance Integration Tests', () => {
             .set('Authorization', `Bearer ${driver1Token}`);
         expect(unapprovedAcceptRes.status).toBe(403);
 
-        // 5. Merchant updates order status to READY
-        const statusRes = await request(app)
+        // 5a. Merchant updates order status to CONFIRMED
+        const statusRes1 = await request(app)
+            .put(`/api/owner/orders/${orderId}/status`)
+            .set('Authorization', `Bearer ${merchantToken}`)
+            .send({ status: OrderStatus.CONFIRMED });
+        expect(statusRes1.status).toBe(200);
+
+        // 5b. Merchant updates order status to PREPARING
+        const statusRes2 = await request(app)
+            .put(`/api/owner/orders/${orderId}/status`)
+            .set('Authorization', `Bearer ${merchantToken}`)
+            .send({ status: OrderStatus.PREPARING });
+        expect(statusRes2.status).toBe(200);
+
+        // 5c. Merchant updates order status to READY
+        const statusRes3 = await request(app)
             .put(`/api/owner/orders/${orderId}/status`)
             .set('Authorization', `Bearer ${merchantToken}`)
             .send({ status: OrderStatus.READY });
-        expect(statusRes.status).toBe(200);
+        expect(statusRes3.status).toBe(200);
 
         // 6. Approved driver views available orders -> should see it
         const approvedAvailRes = await request(app)

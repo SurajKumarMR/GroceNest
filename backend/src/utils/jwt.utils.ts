@@ -12,9 +12,10 @@ if (process.env.NODE_ENV === 'production' && (!JWT_PRIVATE_KEY || !JWT_PUBLIC_KE
 }
 
 export const signToken = (payload: object, expiresIn?: string | number) => {
+    const data = { ...payload, type: 'access' };
     // In production, force RS256
     if (JWT_PRIVATE_KEY) {
-        return jwt.sign(payload, JWT_PRIVATE_KEY, { 
+        return jwt.sign(data, JWT_PRIVATE_KEY, { 
             algorithm: 'RS256',
             expiresIn: (expiresIn || JWT_EXPIRES_IN) as any
         } as SignOptions);
@@ -23,7 +24,7 @@ export const signToken = (payload: object, expiresIn?: string | number) => {
     // Fallback for development only
     if (process.env.NODE_ENV !== 'production' && JWT_SECRET) {
         logger.warn('Using symmetric HS256 for JWT. Switch to RS256 for production hardening.');
-        return jwt.sign(payload, JWT_SECRET, { 
+        return jwt.sign(data, JWT_SECRET, { 
             algorithm: 'HS256',
             expiresIn: (expiresIn || JWT_EXPIRES_IN) as any
         } as SignOptions);
@@ -32,18 +33,23 @@ export const signToken = (payload: object, expiresIn?: string | number) => {
     throw new Error('No JWT signing key provided');
 };
 
-export const verifyToken = (token: string) => {
+export const verifyToken = (token: string, expectedType: 'access' | 'refresh' = 'access') => {
     try {
+        let decoded: any = null;
         if (JWT_PUBLIC_KEY) {
-            return jwt.verify(token, JWT_PUBLIC_KEY, { algorithms: ['RS256'] });
-        }
-        
-        // Fallback for development
-        if (process.env.NODE_ENV !== 'production' && JWT_SECRET) {
-            return jwt.verify(token, JWT_SECRET);
+            decoded = jwt.verify(token, JWT_PUBLIC_KEY, { algorithms: ['RS256'] });
+        } else if (process.env.NODE_ENV !== 'production' && JWT_SECRET) {
+            decoded = jwt.verify(token, JWT_SECRET);
+        } else {
+            return null;
         }
 
-        return null;
+        if (decoded && decoded.type !== expectedType) {
+            logger.error(`JWT Verification Error: Type mismatch. Expected ${expectedType}, got ${decoded.type}`);
+            return null;
+        }
+
+        return decoded;
     } catch (error) {
         logger.error('JWT Verification Error:', (error as Error).message);
         return null;
@@ -53,7 +59,7 @@ export const verifyToken = (token: string) => {
 export const signRefreshToken = (payload: object) => {
     const secret = (JWT_PRIVATE_KEY || JWT_SECRET || 'refresh-secret') as string;
     const algorithm = (JWT_PRIVATE_KEY ? 'RS256' : 'HS256') as Algorithm;
-    return jwt.sign({ ...payload, jti: crypto.randomUUID() }, secret, { 
+    return jwt.sign({ ...payload, type: 'refresh', jti: crypto.randomUUID() }, secret, { 
         algorithm,
         expiresIn: '7d' 
     } as SignOptions);

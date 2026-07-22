@@ -60,7 +60,7 @@ export const getStores = async (req: Request, res: Response): Promise<void> => {
         }
 
         if (cuisine) {
-            whereClause.cuisineTypes = { has: String(cuisine) };
+            whereClause.cuisineTypes = { array_contains: String(cuisine) };
         }
 
         const page = Number(req.query.page) || 1;

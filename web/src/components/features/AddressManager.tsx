@@ -15,12 +15,13 @@ export function AddressManager() {
     const [loading, setLoading] = useState(true);
     const [adding, setAdding] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         street: "",
         city: "",
         state: "",
         zipCode: "",
-        country: "USA",
+        country: "United Kingdom",
         isDefault: false
     });
 
@@ -41,6 +42,29 @@ export function AddressManager() {
 
     const handleAddAddress = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError(null);
+
+        if (formData.street.trim().length === 0) {
+            setError("Street address is required");
+            return;
+        }
+        if (formData.city.trim().length === 0) {
+            setError("City is required");
+            return;
+        }
+        if (formData.state.trim().length === 0) {
+            setError("State is required");
+            return;
+        }
+        if (!/^[A-Z]{1,2}[0-9][A-Z0-9]? [0-9][A-Z]{2}$/i.test(formData.zipCode)) {
+            setError("Invalid UK Postcode format (e.g. SW1A 1AA)");
+            return;
+        }
+        if (formData.country.trim().length === 0) {
+            setError("Country is required");
+            return;
+        }
+
         setAdding(true);
         try {
             await api.post("/users/addresses", formData);
@@ -50,12 +74,13 @@ export function AddressManager() {
                 city: "",
                 state: "",
                 zipCode: "",
-                country: "USA",
+                country: "United Kingdom",
                 isDefault: false
             });
             fetchAddresses();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Add address error:", error);
+            setError(error.response?.data?.error || "Failed to add address");
         } finally {
             setAdding(false);
         }
@@ -90,6 +115,9 @@ export function AddressManager() {
                             <DialogDescription>Enter your delivery address details below.</DialogDescription>
                         </DialogHeader>
                         <form onSubmit={handleAddAddress} className="space-y-4 py-4">
+                            {error && (
+                                <div className="text-sm text-destructive font-medium bg-destructive/10 p-2 rounded" data-testid="address-error">{error}</div>
+                            )}
                             <div className="space-y-2">
                                 <Label htmlFor="street">Street Address</Label>
                                 <Input

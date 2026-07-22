@@ -40,13 +40,13 @@ export default function CheckoutPage() {
     const [deliveryTime, setDeliveryTime] = useState("asap");
     const [tipPercent, setTipPercent] = useState(15);
     
-    // New Address Form State
+    const [addressError, setAddressError] = useState<string | null>(null);
     const [newAddress, setNewAddress] = useState({
         street: "",
         city: "",
         state: "",
         zipCode: "",
-        country: "",
+        country: "United Kingdom",
         isDefault: false
     });
 
@@ -72,15 +72,39 @@ export default function CheckoutPage() {
 
     const handleCreateAddress = async (e: React.FormEvent) => {
         e.preventDefault();
+        setAddressError(null);
+
+        if (newAddress.street.trim().length === 0) {
+            setAddressError("Street address is required");
+            return;
+        }
+        if (newAddress.city.trim().length === 0) {
+            setAddressError("City is required");
+            return;
+        }
+        if (newAddress.state.trim().length === 0) {
+            setAddressError("State is required");
+            return;
+        }
+        if (!/^[A-Z]{1,2}[0-9][A-Z0-9]? [0-9][A-Z]{2}$/i.test(newAddress.zipCode)) {
+            setAddressError("Invalid UK Postcode format (e.g. SW1A 1AA)");
+            return;
+        }
+        if (newAddress.country.trim().length === 0) {
+            setAddressError("Country is required");
+            return;
+        }
+
         setLoading(true);
         try {
             const { data } = await api.post<Address>('/users/addresses', newAddress);
             setAddresses([...addresses, data]);
             setSelectedAddressId(data.id);
             setShowAddressForm(false);
-            setNewAddress({ street: "", city: "", state: "", zipCode: "", country: "", isDefault: false });
-        } catch (error) {
+            setNewAddress({ street: "", city: "", state: "", zipCode: "", country: "United Kingdom", isDefault: false });
+        } catch (error: any) {
             console.error("Failed to create address", error);
+            setAddressError(error.response?.data?.error || "Failed to save address");
         } finally {
             setLoading(false);
         }
@@ -115,11 +139,10 @@ export default function CheckoutPage() {
     };
 
     const subtotal = calculateSubtotal();
-    const deliveryFee = subtotal > 0 ? 3.99 : 0;
-    const serviceFee = subtotal > 0 ? 1.50 : 0;
+    const deliveryFee = subtotal > 0 ? 2.99 : 0;
     const tax = subtotal * 0.08;
     const tipValue = (subtotal * tipPercent) / 100;
-    const total = subtotal + deliveryFee + serviceFee + tax + tipValue;
+    const total = subtotal + deliveryFee + tax + tipValue;
 
     if (orderComplete) {
         // We will move this to a dedicated /confirmed page later, but for now redirect.
@@ -173,6 +196,9 @@ export default function CheckoutPage() {
 
                             {showAddressForm ? (
                                 <form onSubmit={handleCreateAddress} className="space-y-4 ml-12">
+                                    {addressError && (
+                                        <div className="text-sm text-destructive font-medium bg-destructive/10 p-2 rounded" data-testid="checkout-address-error">{addressError}</div>
+                                    )}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="street">Street Address</Label>
@@ -355,15 +381,10 @@ export default function CheckoutPage() {
                                     </div>
                                 ))}
                             </div>
-
                             <div className="space-y-3 text-sm mb-6 border-b border-border pb-6">
                                 <div className="flex justify-between">
                                     <span className="text-muted-foreground font-medium">Subtotal</span>
                                     <span className="font-bold">${subtotal.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground font-medium">Service Fee</span>
-                                    <span className="font-bold">${serviceFee.toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-muted-foreground font-medium">Delivery Fee</span>

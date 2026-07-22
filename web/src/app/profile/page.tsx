@@ -45,7 +45,7 @@ export default function ProfilePage() {
             const token = localStorage.getItem("token");
             if (token) {
                 const userRes = await api.get("/user/profile");
-                login(token, userRes.data);
+                login(token, null, userRes.data);
             }
             toast.success("Profile photo updated!");
         } catch (error) {

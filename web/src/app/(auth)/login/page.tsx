@@ -24,7 +24,7 @@ export default function LoginPage() {
 
         try {
             const { data } = await api.post("/auth/login", { email, password });
-            login(data.token, data.user);
+            login(data.token, data.refreshToken, data.user);
         } catch (err: any) {
             const errorData = err.response?.data?.error;
             setError(typeof errorData === "string" ? errorData : "An unexpected error occurred");

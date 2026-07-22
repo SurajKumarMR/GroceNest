@@ -4,15 +4,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, Send, User } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 
+interface ChatMessage {
+    content: string;
+    isAdmin: boolean;
+    createdAt: Date;
+}
+
 export const ChatWidget = () => {
     const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<any[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
-    const [socket, setSocket] = useState<Socket | null>(null);
+    const socketRef = useRef<Socket | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (isOpen && !socket) {
+        if (isOpen && !socketRef.current) {
             const s = io('http://localhost:5000', {
                 auth: { token: localStorage.getItem('token') }
             });
@@ -21,17 +27,21 @@ export const ChatWidget = () => {
                 s.emit('joinSupport', { userId: 'guest' }); // In real app, get from auth context
             });
 
-            s.on('newSupportMessage', (msg) => {
+            s.on('newSupportMessage', (msg: ChatMessage) => {
                 setMessages(prev => [...prev, msg]);
             });
 
-            setSocket(s);
+            socketRef.current = s;
         }
 
         return () => {
-            if (socket) socket.disconnect();
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+                socketRef.current = null;
+            }
         };
     }, [isOpen]);
+
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -40,15 +50,15 @@ export const ChatWidget = () => {
     }, [messages]);
 
     const handleSend = () => {
-        if (!input.trim() || !socket) return;
+        if (!input.trim() || !socketRef.current) return;
 
-        const newMessage = {
+        const newMessage: ChatMessage = {
             content: input,
             isAdmin: false,
             createdAt: new Date()
         };
 
-        socket.emit('sendSupportMessage', { content: input });
+        socketRef.current.emit('sendSupportMessage', { content: input });
         setMessages(prev => [...prev, newMessage]);
         setInput('');
     };
