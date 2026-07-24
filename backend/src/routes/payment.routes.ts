@@ -172,4 +172,21 @@ router.post('/webhook', express.raw({ type: 'application/json' }), paymentContro
  */
 router.post('/refund', authenticate, paymentController.processRefund);
 
+/**
+ * @openapi
+ * /api/payments/analytics/financials:
+ *   get:
+ *     summary: Retrieve platform-wide financial revenue analytics and payment metrics
+ *     tags:
+ *       - Payments
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Financial analytics metrics retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/analytics/financials', authenticate, paymentController.getFinancialAnalytics);
+
 export default router;

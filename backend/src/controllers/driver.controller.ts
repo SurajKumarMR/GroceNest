@@ -150,8 +150,14 @@ export const deliverOrder = async (req: AuthRequest, res: Response): Promise<voi
             await notificationService.notifyOrderStatusChange(orderId, OrderStatus.DELIVERED, order.userId);
         }
 
-        // Track driver delivers order event
+        // Track driver delivers order event & earnings
         analyticsService.trackEvent('DRIVER_ORDER_DELIVERED', userId, { orderId });
+        await analyticsService.trackDriverDeliveryCompleted(
+            userId,
+            orderId,
+            Number(updatedOrder.deliveryFee || 0),
+            Number(updatedOrder.tipAmount || 0)
+        ).catch(err => console.warn('[Driver] Track delivery completed error:', err));
 
         res.json(updatedOrder);
     } catch (error) {
@@ -226,6 +232,95 @@ export const uploadInsurance = async (req: AuthRequest, res: Response): Promise<
         res.json({ message: 'Insurance uploaded successfully', insuranceUrl });
     } catch (error) {
         console.error('Upload insurance error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const startShift = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        await analyticsService.trackDriverShiftStart(userId);
+
+        res.json({
+            message: 'Driver shift started successfully',
+            startTime: new Date()
+        });
+    } catch (error) {
+        console.error('Start shift error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const endShift = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId;
+        const { durationMinutes } = req.body;
+
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        await analyticsService.trackDriverShiftEnd(userId, durationMinutes ? Number(durationMinutes) : undefined);
+
+        res.json({
+            message: 'Driver shift ended successfully',
+            endTime: new Date(),
+            durationMinutes: durationMinutes ? Number(durationMinutes) : null
+        });
+    } catch (error) {
+        console.error('End shift error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const rateDriver = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { rating, feedback } = req.body;
+        const orderId = req.params.orderId as string;
+
+        if (!orderId || !rating) {
+            res.status(400).json({ error: 'orderId and rating are required' });
+            return;
+        }
+
+        const order = await prisma.order.findUnique({
+            where: { id: orderId },
+            select: { id: true, driverId: true }
+        });
+
+        if (!order || !order.driverId) {
+            res.status(404).json({ error: 'Order or assigned driver not found' });
+            return;
+        }
+
+        await analyticsService.trackDriverRating(order.driverId, orderId, Number(rating), feedback);
+
+        res.json({
+            message: 'Driver rating submitted successfully',
+            driverId: order.driverId,
+            rating: Number(rating)
+        });
+    } catch (error) {
+        console.error('Rate driver error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const getDriverPerformanceAnalytics = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId as string;
+        const days = req.query.days ? parseInt(req.query.days as string, 10) : 30;
+
+        const metrics = await analyticsService.getDriverPerformanceMetrics(userId, isNaN(days) ? 30 : days);
+        res.json(metrics);
+    } catch (error) {
+        console.error('Get driver performance analytics error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };

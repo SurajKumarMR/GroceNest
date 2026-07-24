@@ -49,7 +49,7 @@ import notificationRoutes from './routes/notification.routes';
 import reviewRoutes from './routes/review.routes';
 import adminRoutes from './routes/admin.routes';
 import analyticsRoutes from './routes/analytics.routes';
-import { setupSwagger } from './utils/swagger';
+import { setupSwagger } from './config/swagger';
 import { rateLimit } from 'express-rate-limit';
 
 // Security: Rate Limiting

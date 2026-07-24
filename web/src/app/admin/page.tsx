@@ -131,6 +131,19 @@ export default function AdminDashboard() {
                     </CardHeader>
                     <CardContent className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                         <button
+                            onClick={() => router.push("/admin/analytics")}
+                            className="flex items-start gap-4 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-all text-left group border-primary/30"
+                        >
+                            <div className="p-3 bg-purple-100 text-purple-600 rounded-lg group-hover:scale-110 transition-transform">
+                                <TrendingUp className="h-6 w-6" />
+                            </div>
+                            <div>
+                                <div className="font-bold">Analytics Dashboard</div>
+                                <div className="text-sm text-muted-foreground">Orders, revenue & performance</div>
+                            </div>
+                        </button>
+
+                        <button
                             onClick={() => router.push("/admin/users")}
                             className="flex items-start gap-4 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-all text-left group"
                         >
@@ -153,19 +166,6 @@ export default function AdminDashboard() {
                             <div>
                                 <div className="font-bold">Store Moderation</div>
                                 <div className="text-sm text-muted-foreground">Approve or suspend merchant shops</div>
-                            </div>
-                        </button>
-
-                        <button
-                            className="flex items-start gap-4 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-all text-left group opacity-60 cursor-not-allowed"
-                            disabled
-                        >
-                            <div className="p-3 bg-purple-100 text-purple-600 rounded-lg">
-                                <Settings className="h-6 w-6" />
-                            </div>
-                            <div>
-                                <div className="font-bold">System Settings</div>
-                                <div className="text-sm text-muted-foreground">Platform configuration (Coming Soon)</div>
                             </div>
                         </button>
                     </CardContent>

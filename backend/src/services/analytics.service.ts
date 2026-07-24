@@ -367,6 +367,114 @@ export const analyticsService = {
         await analyticsService.trackEvent('DRIVER_LOCATION_UPDATE', driverId, { latitude, longitude, accuracy });
     },
 
+    trackDriverShiftStart: async (driverId: string) => {
+        await analyticsService.trackEvent('DRIVER_SHIFT_STARTED', driverId, { startTime: new Date() });
+    },
+
+    trackDriverShiftEnd: async (driverId: string, durationMinutes?: number) => {
+        await analyticsService.trackEvent('DRIVER_SHIFT_ENDED', driverId, { endTime: new Date(), durationMinutes });
+    },
+
+    trackDriverDeliveryCompleted: async (driverId: string, orderId: string, deliveryFee: number, tipAmount: number = 0) => {
+        const totalEarned = Number(deliveryFee || 0) + Number(tipAmount || 0);
+        await analyticsService.trackEvent('DRIVER_DELIVERY_COMPLETED', driverId, {
+            orderId,
+            deliveryFee: Number(deliveryFee || 0),
+            tipAmount: Number(tipAmount || 0),
+            totalEarned: Number(totalEarned.toFixed(2))
+        });
+    },
+
+    trackDriverRating: async (driverId: string, orderId: string, rating: number, feedback?: string) => {
+        await analyticsService.trackEvent('DRIVER_RATED', driverId, { orderId, rating, feedback });
+    },
+
+    /**
+     * Compute aggregated driver performance metrics (deliveries, fee earnings, tips, ratings, and shifts)
+     */
+    getDriverPerformanceMetrics: async (driverId: string, timeframeDays: number = 30) => {
+        try {
+            const startDate = new Date(Date.now() - timeframeDays * 24 * 60 * 60 * 1000);
+
+            const deliveredOrders = await prisma.order.findMany({
+                where: {
+                    driverId,
+                    status: 'DELIVERED',
+                    deliveredAt: { gte: startDate }
+                },
+                select: {
+                    id: true,
+                    deliveryFee: true,
+                    tipAmount: true,
+                    deliveredAt: true
+                }
+            });
+
+            const totalCompletedDeliveries = deliveredOrders.length;
+            const totalDeliveryFees = deliveredOrders.reduce((sum, o) => sum + Number(o.deliveryFee || 0), 0);
+            const totalTips = deliveredOrders.reduce((sum, o) => sum + Number(o.tipAmount || 0), 0);
+            const totalEarnings = totalDeliveryFees + totalTips;
+
+            const ratingEvents = await prisma.analyticsEvent.findMany({
+                where: {
+                    userId: driverId,
+                    eventName: 'DRIVER_RATED',
+                    timestamp: { gte: startDate }
+                }
+            });
+
+            const totalRatings = ratingEvents.length;
+            const averageRating = totalRatings > 0
+                ? Number((ratingEvents.reduce((sum, e) => sum + Number((e.properties as any)?.rating || 0), 0) / totalRatings).toFixed(2))
+                : 5.0;
+
+            const shiftEvents = await prisma.analyticsEvent.count({
+                where: {
+                    userId: driverId,
+                    eventName: 'DRIVER_SHIFT_STARTED',
+                    timestamp: { gte: startDate }
+                }
+            });
+
+            const dailyMap = new Map<string, { deliveries: number; fee: number; tip: number; earnings: number }>();
+            for (const order of deliveredOrders) {
+                const dateStr = (order.deliveredAt || new Date()).toISOString().split('T')[0];
+                const fee = Number(order.deliveryFee || 0);
+                const tip = Number(order.tipAmount || 0);
+                const curr = dailyMap.get(dateStr) || { deliveries: 0, fee: 0, tip: 0, earnings: 0 };
+                dailyMap.set(dateStr, {
+                    deliveries: curr.deliveries + 1,
+                    fee: curr.fee + fee,
+                    tip: curr.tip + tip,
+                    earnings: curr.earnings + fee + tip
+                });
+            }
+
+            const dailyBreakdown = Array.from(dailyMap.entries()).map(([date, data]) => ({
+                date,
+                deliveries: data.deliveries,
+                feeEarnings: Number(data.fee.toFixed(2)),
+                tipEarnings: Number(data.tip.toFixed(2)),
+                totalEarnings: Number(data.earnings.toFixed(2))
+            })).sort((a, b) => a.date.localeCompare(b.date));
+
+            return {
+                driverId,
+                timeframeDays,
+                totalCompletedDeliveries,
+                totalDeliveryFees: Number(totalDeliveryFees.toFixed(2)),
+                totalTips: Number(totalTips.toFixed(2)),
+                totalEarnings: Number(totalEarnings.toFixed(2)),
+                averageRating,
+                completedShiftsCount: shiftEvents,
+                dailyBreakdown
+            };
+        } catch (error) {
+            logger.error('Error calculating driver performance metrics:', error);
+            throw error;
+        }
+    },
+
     // 4.5 Payment Event Tracking
     trackCheckoutStarted: async (userId: string, orderId: string, amount: number) => {
         await analyticsService.trackEvent('CHECKOUT_STARTED', userId, { orderId, amount });
@@ -378,5 +486,91 @@ export const analyticsService = {
 
     trackPaymentFailed: async (userId: string, orderId: string, amount: number, errorMsg: string) => {
         await analyticsService.trackEvent('PAYMENT_FAILED', userId, { orderId, amount, errorMsg });
+    },
+
+    trackPaymentRefunded: async (userId: string, orderId: string, refundAmount: number, reason?: string) => {
+        await analyticsService.trackEvent('PAYMENT_REFUNDED', userId, { orderId, refundAmount, reason });
+    },
+
+    /**
+     * Compute platform-wide financial revenue analytics (Gross Revenue, Refunds, Net Revenue, Commission, Success Rate)
+     */
+    getFinancialAnalyticsMetrics: async (timeframeDays: number = 30) => {
+        try {
+            const startDate = new Date(Date.now() - timeframeDays * 24 * 60 * 60 * 1000);
+
+            const paidOrders = await prisma.order.findMany({
+                where: {
+                    paymentStatus: { in: ['paid', 'refunded'] },
+                    placedAt: { gte: startDate }
+                },
+                select: {
+                    id: true,
+                    totalAmount: true,
+                    paymentStatus: true,
+                    placedAt: true
+                }
+            });
+
+            const [successEvents, failureEvents, refundEvents] = await Promise.all([
+                prisma.analyticsEvent.findMany({
+                    where: { eventName: 'PAYMENT_COMPLETED', timestamp: { gte: startDate } }
+                }),
+                prisma.analyticsEvent.findMany({
+                    where: { eventName: 'PAYMENT_FAILED', timestamp: { gte: startDate } }
+                }),
+                prisma.analyticsEvent.findMany({
+                    where: { eventName: 'PAYMENT_REFUNDED', timestamp: { gte: startDate } }
+                })
+            ]);
+
+            const totalGrossRevenue = paidOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+            const totalRefunds = refundEvents.reduce((sum, e) => sum + Number((e.properties as any)?.refundAmount || 0), 0);
+            const totalNetRevenue = Math.max(0, totalGrossRevenue - totalRefunds);
+            const platformCommissionEarned = totalGrossRevenue * 0.10;
+
+            const totalSuccessfulPaymentsCount = successEvents.length || paidOrders.length;
+            const totalFailedPaymentsCount = failureEvents.length;
+            const totalAttempts = totalSuccessfulPaymentsCount + totalFailedPaymentsCount;
+            const paymentSuccessRate = totalAttempts > 0
+                ? Number(((totalSuccessfulPaymentsCount / totalAttempts) * 100).toFixed(1))
+                : 100.0;
+
+            const dailyMap = new Map<string, { gross: number; refund: number; net: number }>();
+            for (const order of paidOrders) {
+                const dateStr = order.placedAt.toISOString().split('T')[0];
+                const curr = dailyMap.get(dateStr) || { gross: 0, refund: 0, net: 0 };
+                const gross = Number(order.totalAmount);
+                const isRefunded = order.paymentStatus === 'refunded';
+                const refund = isRefunded ? gross : 0;
+                dailyMap.set(dateStr, {
+                    gross: curr.gross + gross,
+                    refund: curr.refund + refund,
+                    net: curr.net + (gross - refund)
+                });
+            }
+
+            const dailyFinancials = Array.from(dailyMap.entries()).map(([date, data]) => ({
+                date,
+                grossRevenue: Number(data.gross.toFixed(2)),
+                totalRefunds: Number(data.refund.toFixed(2)),
+                netRevenue: Number(data.net.toFixed(2))
+            })).sort((a, b) => a.date.localeCompare(b.date));
+
+            return {
+                timeframeDays,
+                totalGrossRevenue: Number(totalGrossRevenue.toFixed(2)),
+                totalRefunds: Number(totalRefunds.toFixed(2)),
+                totalNetRevenue: Number(totalNetRevenue.toFixed(2)),
+                platformCommissionEarned: Number(platformCommissionEarned.toFixed(2)),
+                totalSuccessfulPaymentsCount,
+                totalFailedPaymentsCount,
+                paymentSuccessRate,
+                dailyFinancials
+            };
+        } catch (error) {
+            logger.error('Error calculating financial analytics metrics:', error);
+            throw error;
+        }
     },
 };

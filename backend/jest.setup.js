@@ -9,10 +9,3 @@ jest.mock('./src/services/email.service', () => ({
     generateInvoiceAttachment: jest.fn().mockReturnValue({ filename: 'invoice.html', content: '<html></html>', contentType: 'text/html' }),
   }
 }));
-
-jest.mock('./src/services/sms.service', () => ({
-  smsService: {
-    sendSMS: jest.fn().mockResolvedValue({ sid: 'mock-sid' }),
-    sendVerificationOTP: jest.fn().mockResolvedValue({ sid: 'mock-sid' }),
-  }
-}));

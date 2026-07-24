@@ -12,7 +12,7 @@ module.exports = {
     '<rootDir>/src/__tests__/integration/migration.test.ts',
   ],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
+    '^.+\\.[tj]sx?$': ['ts-jest', {
       tsconfig: 'tsconfig.json',
     }],
   },
@@ -22,4 +22,8 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
+  collectCoverageFrom: [
+    'src/services/**/*.ts',
+    'src/utils/**/*.ts',
+  ],
 };

@@ -274,6 +274,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
                     data: { paymentStatus: 'refunded' }
                 });
                 const refundAmount = Number(charge.amount_refunded) / 100;
+                await analyticsService.trackPaymentRefunded(order.userId || 'guest', order.id, refundAmount, 'Charge refunded via webhook');
                 await notificationService.sendRefundNotificationEmail(order.id, refundAmount, 'Refund processed').catch(err => {
                     console.error('Failed to trigger refund email via notificationService:', err);
                 });
@@ -319,6 +320,7 @@ export const processRefund = async (req: AuthRequest, res: Response): Promise<vo
             }
         });
 
+        await analyticsService.trackPaymentRefunded(order.userId || userId, order.id, refundAmount, reason);
         await notificationService.sendRefundNotificationEmail(order.id, refundAmount, reason).catch(err => {
             console.error('Failed to trigger refund email via notificationService:', err);
         });
@@ -326,6 +328,17 @@ export const processRefund = async (req: AuthRequest, res: Response): Promise<vo
         res.json({ message: 'Refund processed successfully', order: updatedOrder });
     } catch (error) {
         console.error('Process refund error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const getFinancialAnalytics = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const days = req.query.days ? parseInt(req.query.days as string, 10) : 30;
+        const metrics = await analyticsService.getFinancialAnalyticsMetrics(isNaN(days) ? 30 : days);
+        res.json(metrics);
+    } catch (error) {
+        console.error('Get financial analytics error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };

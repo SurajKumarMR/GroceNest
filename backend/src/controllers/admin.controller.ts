@@ -242,3 +242,157 @@ export const checkCustomerChurn = async (req: AuthRequest, res: Response): Promi
         res.status(500).json({ error: 'Internal server error' });
     }
 };
+
+export const getAdminAnalyticsOverview = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const days = req.query.days ? parseInt(req.query.days as string, 10) : 30;
+        const timeframeDays = isNaN(days) ? 30 : days;
+        const startDate = new Date(Date.now() - timeframeDays * 24 * 60 * 60 * 1000);
+
+        const [
+            totalUsers,
+            totalCustomers,
+            newCustomers30Days,
+            totalStores,
+            activeStores,
+            totalOrders,
+            paidOrders,
+            customerSignupsDaily,
+            topStores
+        ] = await Promise.all([
+            prisma.user.count(),
+            prisma.user.count({ where: { role: 'CUSTOMER' } }),
+            prisma.user.count({ where: { role: 'CUSTOMER', createdAt: { gte: startDate } } }),
+            prisma.store.count(),
+            prisma.store.count({ where: { orders: { some: { placedAt: { gte: startDate } } } } }),
+            prisma.order.count(),
+            prisma.order.findMany({
+                where: {
+                    placedAt: { gte: startDate },
+                    paymentStatus: { in: ['paid', 'refunded'] }
+                },
+                select: {
+                    id: true,
+                    totalAmount: true,
+                    placedAt: true,
+                    paymentStatus: true,
+                    status: true,
+                    storeId: true
+                }
+            }),
+            prisma.user.groupBy({
+                by: ['createdAt'],
+                where: {
+                    role: 'CUSTOMER',
+                    createdAt: { gte: startDate }
+                },
+                _count: { id: true }
+            }),
+            prisma.store.findMany({
+                take: 10,
+                select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    cuisineTypes: true,
+                    owner: { select: { email: true, firstName: true, lastName: true } },
+                    orders: {
+                        where: { status: 'DELIVERED' },
+                        select: { totalAmount: true }
+                    },
+                    reviews: {
+                        select: { rating: true }
+                    }
+                }
+            })
+        ]);
+
+        const totalGrossRevenue = paidOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+        const platformCommission = totalGrossRevenue * 0.10;
+        const totalRefunds = paidOrders.filter(o => o.paymentStatus === 'refunded').reduce((sum, o) => sum + Number(o.totalAmount), 0);
+        const totalNetRevenue = Math.max(0, totalGrossRevenue - totalRefunds);
+
+        const dailyMap = new Map<string, { orders: number; revenue: number; signups: number }>();
+        for (const order of paidOrders) {
+            const dateStr = order.placedAt.toISOString().split('T')[0];
+            const curr = dailyMap.get(dateStr) || { orders: 0, revenue: 0, signups: 0 };
+            dailyMap.set(dateStr, {
+                orders: curr.orders + 1,
+                revenue: curr.revenue + Number(order.totalAmount),
+                signups: curr.signups
+            });
+        }
+
+        for (const s of customerSignupsDaily) {
+            const dateStr = s.createdAt.toISOString().split('T')[0];
+            const curr = dailyMap.get(dateStr) || { orders: 0, revenue: 0, signups: 0 };
+            dailyMap.set(dateStr, {
+                orders: curr.orders,
+                revenue: curr.revenue,
+                signups: curr.signups + s._count.id
+            });
+        }
+
+        const dailyStats = Array.from(dailyMap.entries()).map(([date, d]) => ({
+            date,
+            orders: d.orders,
+            revenue: Number(d.revenue.toFixed(2)),
+            customerSignups: d.signups
+        })).sort((a, b) => a.date.localeCompare(b.date));
+
+        const merchantPerformance = topStores.map(store => {
+            const completedOrdersCount = store.orders.length;
+            const totalStoreRevenue = store.orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+            const totalRatings = store.reviews.length;
+            const avgRating = totalRatings > 0
+                ? Number((store.reviews.reduce((sum, r) => sum + r.rating, 0) / totalRatings).toFixed(1))
+                : 5.0;
+
+            return {
+                id: store.id,
+                name: store.name,
+                ownerName: store.owner ? `${store.owner.firstName} ${store.owner.lastName}` : 'N/A',
+                ownerEmail: store.owner?.email || 'N/A',
+                completedOrders: completedOrdersCount,
+                totalRevenue: Number(totalStoreRevenue.toFixed(2)),
+                rating: avgRating
+            };
+        }).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const activeUserIds = await prisma.order.findMany({
+            where: { placedAt: { gte: sevenDaysAgo } },
+            select: { userId: true },
+            distinct: ['userId']
+        });
+        const activeIds = activeUserIds.map(o => o.userId).filter(Boolean) as string[];
+        const churnedCustomersCount = await prisma.user.count({
+            where: {
+                role: 'CUSTOMER',
+                id: { notIn: activeIds }
+            }
+        });
+
+        res.json({
+            overview: {
+                timeframeDays,
+                totalOrders,
+                ordersTimeframe: paidOrders.length,
+                totalGrossRevenue: Number(totalGrossRevenue.toFixed(2)),
+                totalNetRevenue: Number(totalNetRevenue.toFixed(2)),
+                platformCommission: Number(platformCommission.toFixed(2)),
+                totalUsers,
+                totalCustomers,
+                newCustomers30Days,
+                churnedCustomersCount,
+                totalStores,
+                activeStores,
+                dailyStats,
+                merchantPerformance
+            }
+        });
+    } catch (error) {
+        console.error('Get admin analytics overview error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
