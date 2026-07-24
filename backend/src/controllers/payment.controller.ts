@@ -10,6 +10,7 @@ import {
 import prisma from '../utils/prisma';
 import Stripe from 'stripe';
 import { analyticsService } from '../services/analytics.service';
+import { monitoringService } from '../services/monitoring.service';
 
 export const initPayment = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -230,12 +231,19 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
                 }
             });
 
-            // Track payment failed
+            // Track payment failed & trigger real-time monitoring alert
+            const failReason = paymentIntent.last_payment_error?.message || 'Payment failed';
             await analyticsService.trackPaymentFailed(
                 metadataUserId,
                 orderId,
                 Number(paymentIntent.amount) / 100,
-                paymentIntent.last_payment_error?.message || 'Payment failed'
+                failReason
+            );
+            await monitoringService.alertPaymentFailure(
+                orderId,
+                metadataUserId,
+                Number(paymentIntent.amount) / 100,
+                failReason
             );
         }
     }
