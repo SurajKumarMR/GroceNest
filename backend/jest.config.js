@@ -17,7 +17,7 @@ module.exports = {
     }],
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(@scure|otplib|@otplib))',
+    'node_modules/(?!(@scure|@noble|otplib|@otplib))',
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
