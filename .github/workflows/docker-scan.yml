@@ -19,7 +19,7 @@ jobs:
         run: docker build -t grocenest-backend:test ./backend
 
       - name: Run Trivy Scan on Backend Image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           image-ref: 'grocenest-backend:test'
           format: 'table'
@@ -32,7 +32,7 @@ jobs:
         run: docker build -t grocenest-web:test ./web
 
       - name: Run Trivy Scan on Web Image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           image-ref: 'grocenest-web:test'
           format: 'table'
