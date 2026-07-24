@@ -192,7 +192,7 @@ export const ProfileScreen = ({ navigation }: any) => {
                             icon={Bell} 
                             label="Notification Preferences" 
                             iconBg="#f4fce3"
-                            onPress={() => {}} 
+                            onPress={() => navigation.navigate('NotificationPreferences')} 
                         />
                         <View style={styles.divider} />
                         <SettingCard 

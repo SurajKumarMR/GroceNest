@@ -5,6 +5,7 @@ import prisma from '../utils/prisma';
 import { OrderStatus } from '@prisma/client';
 import { notificationService } from '../services/notification.service';
 import { analyticsService } from '../services/analytics.service';
+import { emailService } from '../services/email.service';
 import { isValidStatusTransition } from '../utils/order-status';
 
 export const getAvailableOrders = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -137,10 +138,14 @@ export const deliverOrder = async (req: AuthRequest, res: Response): Promise<voi
                         createdBy: userId
                     }
                 }
+            },
+            include: {
+                user: { include: { notificationPreference: true } },
+                orderItems: true
             }
         });
 
-        // Notify customer
+        // Notify customer (triggers in-app, socket, and delivery receipt email with invoice)
         if (order.userId) {
             await notificationService.notifyOrderStatusChange(orderId, OrderStatus.DELIVERED, order.userId);
         }

@@ -23,9 +23,13 @@ jest.mock('qrcode', () => ({
 }));
 jest.mock('../../services/email.service', () => ({
     emailService: {
-        sendEmail: jest.fn().mockResolvedValue(true),
-        sendVerificationEmail: jest.fn().mockResolvedValue(true),
-        sendOrderConfirmationEmail: jest.fn().mockResolvedValue(true),
+        sendEmail: jest.fn().mockResolvedValue({ messageId: 'mock-id' }),
+        sendVerificationEmail: jest.fn().mockResolvedValue({ messageId: 'mock-id' }),
+        sendPasswordResetEmail: jest.fn().mockResolvedValue({ messageId: 'mock-id' }),
+        sendOrderConfirmationEmail: jest.fn().mockResolvedValue({ messageId: 'mock-id' }),
+        sendDeliveryReceiptEmail: jest.fn().mockResolvedValue({ messageId: 'mock-id' }),
+        sendRefundNotificationEmail: jest.fn().mockResolvedValue({ messageId: 'mock-id' }),
+        generateInvoiceAttachment: jest.fn().mockReturnValue({ filename: 'invoice.html', content: '<html></html>', contentType: 'text/html' }),
     },
 }));
 jest.mock('../../services/sms.service', () => ({

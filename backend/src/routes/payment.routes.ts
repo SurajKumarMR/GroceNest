@@ -138,4 +138,38 @@ router.get('/connect/callback', paymentController.onboardCallback);
  */
 router.post('/webhook', express.raw({ type: 'application/json' }), paymentController.handleStripeWebhook);
 
+/**
+ * @openapi
+ * /api/payments/refund:
+ *   post:
+ *     summary: Process order refund and dispatch email notification
+ *     tags:
+ *       - Payments
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - orderId
+ *             properties:
+ *               orderId:
+ *                 type: string
+ *               amount:
+ *                 type: number
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Refund processed successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Order not found
+ */
+router.post('/refund', authenticate, paymentController.processRefund);
+
 export default router;

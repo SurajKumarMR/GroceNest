@@ -113,33 +113,35 @@ app.use(cors({
 }));
 
 // Security: Helmet configuration for strict headers
-const isProduction = process.env.NODE_ENV === 'production';
-app.use(helmet({
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            scriptSrc: isProduction
-                ? ["'self'", "https://js.stripe.com", "https://maps.googleapis.com"]
-                : ["'self'", "https://js.stripe.com", "https://maps.googleapis.com", "'unsafe-inline'"],
-            styleSrc: isProduction
-                ? ["'self'", "https://fonts.googleapis.com"]
-                : ["'self'", "https://fonts.googleapis.com", "'unsafe-inline'"],
-            imgSrc: ["'self'", "data:", "https://*.stripe.com", "https://*.cloudinary.com", "https://maps.gstatic.com"],
-            connectSrc: ["'self'", "https://api.stripe.com", "https://maps.googleapis.com", "https://*.firebaseio.com"],
-            fontSrc: ["'self'", "https://fonts.gstatic.com"],
-            objectSrc: ["'none'"],
-            mediaSrc: ["'self'"],
-            frameSrc: ["'self'", "https://js.stripe.com"],
+app.use((req: Request, res: Response, next: NextFunction) => {
+    const isProd = process.env.NODE_ENV === 'production';
+    helmet({
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: isProd
+                    ? ["'self'", "https://js.stripe.com", "https://maps.googleapis.com"]
+                    : ["'self'", "https://js.stripe.com", "https://maps.googleapis.com", "'unsafe-inline'"],
+                styleSrc: isProd
+                    ? ["'self'", "https://fonts.googleapis.com"]
+                    : ["'self'", "https://fonts.googleapis.com", "'unsafe-inline'"],
+                imgSrc: ["'self'", "data:", "https://*.stripe.com", "https://*.cloudinary.com", "https://maps.gstatic.com"],
+                connectSrc: ["'self'", "https://api.stripe.com", "https://maps.googleapis.com", "https://*.firebaseio.com"],
+                fontSrc: ["'self'", "https://fonts.gstatic.com"],
+                objectSrc: ["'none'"],
+                mediaSrc: ["'self'"],
+                frameSrc: ["'self'", "https://js.stripe.com"],
+            },
         },
-    },
-    crossOriginEmbedderPolicy: false,
-    crossOriginResourcePolicy: { policy: "same-site" },
-    hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true
-    }
-}));
+        crossOriginEmbedderPolicy: false,
+        crossOriginResourcePolicy: { policy: "same-site" },
+        hsts: {
+            maxAge: 31536000,
+            includeSubDomains: true,
+            preload: true
+        }
+    })(req, res, next);
+});
 
 // Disable X-Powered-By
 app.disable('x-powered-by');
@@ -297,6 +299,15 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     res.status(err.status || 500).json(response);
 });
 
+// Global process exception & rejection handlers
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+    logger.error(`❌ Unhandled Rejection at: ${promise}, reason: ${reason?.stack || reason}`);
+});
+
+process.on('uncaughtException', (err: Error) => {
+    logger.error(`❌ Uncaught Exception: ${err.message}`, { stack: err.stack });
+});
+
 // Start Server
 if (process.env.NODE_ENV !== 'test') {
     server.on('error', (err: any) => {
@@ -313,3 +324,4 @@ if (process.env.NODE_ENV !== 'test') {
         logger.info(`[server]: Server is running at http://localhost:${port}`);
     });
 }
+

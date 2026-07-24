@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { analyticsService } from '../services/analytics.service';
 
 const prisma = new PrismaClient();
 
@@ -179,6 +180,65 @@ export const toggleStoreStatus = async (req: AuthRequest, res: Response): Promis
         res.json(updatedStore);
     } catch (error) {
         console.error('Toggle store status error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const getNotificationStats = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const days = req.query.days ? parseInt(req.query.days as string, 10) : 7;
+        const { notificationService } = require('../services/notification.service');
+        const stats = await notificationService.getDeliveryStats(isNaN(days) ? 7 : days);
+        res.json(stats);
+    } catch (error) {
+        console.error('Get notification stats error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const getNotificationLogs = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { type, status, channel, limit } = req.query;
+        const take = limit ? parseInt(limit as string, 10) : 50;
+
+        const whereClause: any = {};
+        if (type) whereClause.type = type as string;
+        if (status) whereClause.status = status as string;
+        if (channel) whereClause.channel = channel as string;
+
+        const logs = await prisma.notificationLog.findMany({
+            where: whereClause,
+            orderBy: { sentAt: 'desc' },
+            take: isNaN(take) ? 50 : take,
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        email: true,
+                        firstName: true,
+                        lastName: true
+                    }
+                }
+            }
+        });
+
+        res.json(logs);
+    } catch (error) {
+        console.error('Get notification logs error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const checkCustomerChurn = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const churnedCustomerIds = await analyticsService.detectAndTrackChurnedCustomers();
+        res.json({
+            message: 'Churn detection completed successfully',
+            churnedCustomersCount: churnedCustomerIds.length,
+            churnedCustomerIds
+        });
+    } catch (error) {
+        console.error('Check customer churn error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };

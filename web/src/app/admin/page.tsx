@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Users, Store, Package, DollarSign, TrendingUp, Loader2, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { AdminChart } from "@/components/features/AdminChart";
+import { NotificationDeliveryDashboard } from "@/components/features/NotificationDeliveryDashboard";
 
 interface AdminStats {
     totalUsers: number;
@@ -170,6 +171,8 @@ export default function AdminDashboard() {
                     </CardContent>
                 </Card>
             </div>
+
+            <NotificationDeliveryDashboard />
         </div>
     );
 }

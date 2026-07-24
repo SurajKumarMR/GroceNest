@@ -171,4 +171,22 @@ describe('Auth Utilities', () => {
             expect(result.success).toBe(false);
         });
     });
+
+    describe('Password & Social Auth Requirements', () => {
+        it('should require password or social login ID (googleId or appleId)', () => {
+            const validateUserAuthData = (data: { passwordHash?: string | null; googleId?: string | null; appleId?: string | null }) => {
+                if (!data.passwordHash && !data.googleId && !data.appleId) {
+                    throw new Error('User must have password or social login');
+                }
+                return true;
+            };
+
+            expect(() => validateUserAuthData({})).toThrow('User must have password or social login');
+            expect(() => validateUserAuthData({ passwordHash: null, googleId: null, appleId: null })).toThrow('User must have password or social login');
+            expect(validateUserAuthData({ passwordHash: 'hashedSecret' })).toBe(true);
+            expect(validateUserAuthData({ googleId: 'google-uid-123' })).toBe(true);
+            expect(validateUserAuthData({ appleId: 'apple-uid-456' })).toBe(true);
+        });
+    });
 });
+

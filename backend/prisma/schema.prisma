@@ -660,20 +660,24 @@ model DeviceToken {
 }
 
 model NotificationLog {
-  id          String    @id @default(uuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        String    // 'push', 'sms', 'email'
-  channel     String    // 'fcm', 'twilio', 'sendgrid'
-  title       String?
-  body        String
-  status      String    // 'sent', 'failed'
-  error       String?
-  sentAt      DateTime  @default(now())
-  deliveredAt DateTime?
+  id                String    @id @default(uuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String    // 'push', 'sms', 'email'
+  channel           String    // 'fcm', 'twilio', 'sendgrid'
+  title             String?
+  body              String
+  status            String    // 'sent', 'delivered', 'failed'
+  error             String?
+  providerMessageId String?   // Provider tracking ID (e.g. FCM msg id, Twilio SID)
+  metadata          Json?     // Optional payload metadata
+  sentAt            DateTime  @default(now())
+  deliveredAt       DateTime?
 
   @@index([userId])
   @@index([status])
+  @@index([type])
+  @@index([sentAt])
 }
 
 model NotificationPreference {

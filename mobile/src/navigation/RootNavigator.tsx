@@ -18,6 +18,7 @@ import { OrderHistoryScreen } from '../screens/OrderHistoryScreen';
 import { AddressListScreen } from '../screens/AddressListScreen';
 import { AddAddressScreen } from '../screens/AddAddressScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
+import { NotificationPreferencesScreen } from '../screens/NotificationPreferencesScreen';
 import { DriverDashboardScreen } from '../screens/DriverDashboardScreen';
 import { DriverActiveOrdersScreen } from '../screens/DriverActiveOrdersScreen';
 import { ReviewScreen } from '../screens/ReviewScreen';
@@ -106,6 +107,7 @@ const AppStack = () => (
         <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
         <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} options={{ title: 'My Orders' }} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} options={{ headerShown: false }} />
         <Stack.Screen name="AddressList" component={AddressListScreen} options={{ title: 'Saved Addresses' }} />
         <Stack.Screen name="AddAddress" component={AddAddressScreen} options={{ title: 'Add New Address' }} />
         <Stack.Screen name="DriverDashboard" component={DriverDashboardScreen} options={{ title: 'Driver Jobs' }} />

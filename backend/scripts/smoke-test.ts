@@ -8,7 +8,11 @@ async function runSmokeTests() {
 
     try {
         // 1. Health Check
-        const health = await axios.get('http://localhost:8000/health');
+        const health = await axios.get('http://localhost:8000/health').catch((err) => {
+            console.error('❌ Express backend server is not running at http://localhost:8000.');
+            console.error('👉 Please start the server first in another terminal using `npm run dev` or `npm start`.');
+            process.exit(1);
+        });
         console.log('✅ Health Check Passed:', health.data.status);
 
         // 2. Auth - Try to login with non-existent user

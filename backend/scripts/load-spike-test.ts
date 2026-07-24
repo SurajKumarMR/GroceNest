@@ -1,10 +1,24 @@
 import autocannon from 'autocannon';
+import http from 'http';
 
 async function runSpikeTest() {
   console.log('=========================================');
   console.log('  Spike Load Test: Promo Launch Burst    ');
   console.log('  Target: http://localhost:8000           ');
   console.log('=========================================');
+
+  // Pre-flight check to ensure local server is running
+  const isServerRunning = await new Promise<boolean>((resolve) => {
+    const req = http.get('http://localhost:8000/health', (res) => resolve(res.statusCode === 200));
+    req.on('error', () => resolve(false));
+    req.end();
+  });
+
+  if (!isServerRunning) {
+    console.error('❌ Express backend server is not running at http://localhost:8000.');
+    console.error('👉 Please start the server first in another terminal using `npm run dev` or `npm start`.');
+    process.exit(1);
+  }
 
   const instance = autocannon({
     url: 'http://localhost:8000/api/auth/login',
@@ -21,9 +35,11 @@ async function runSpikeTest() {
       process.exit(1);
     }
 
+    const latency = result.latency as any;
+    const p95Latency = latency.p97_5 ?? latency.p95 ?? 0;
     console.log('\n--- SPIKE LOAD TEST METRICS ---');
     console.log(`Req/Sec (RPS):   ${result.requests.average}`);
-    console.log(`Latency p95:     ${result.latency.p95} ms`);
+    console.log(`Latency p95/97.5: ${p95Latency} ms`);
     console.log(`Rate-Limited (429/401/400): ${result.non2xx}`);
 
     // In a spike test, rate limiters trigger 429 / 401 cleanly without 500 errors

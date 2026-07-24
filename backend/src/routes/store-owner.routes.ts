@@ -1,7 +1,18 @@
 
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware';
-import { getMyStore, getStoreOrders, updateOrderStatus, updateStore, createProduct, deleteProduct, updateProduct, uploadProductImage } from '../controllers/store-owner.controller';
+import { 
+    getMyStore, 
+    getStoreOrders, 
+    updateOrderStatus, 
+    updateStore, 
+    createProduct, 
+    deleteProduct, 
+    updateProduct, 
+    uploadProductImage,
+    getStoreRevenueAnalytics,
+    triggerMerchantPayout
+} from '../controllers/store-owner.controller';
 import { upload } from '../middleware/upload.middleware';
 
 const router = Router();
@@ -14,6 +25,8 @@ router.get('/my-store', getMyStore);
 router.put('/my-store', updateStore);
 router.get('/orders', getStoreOrders);
 router.put('/orders/:orderId/status', updateOrderStatus);
+router.get('/analytics/revenue', getStoreRevenueAnalytics);
+router.post('/payouts', triggerMerchantPayout);
 
 router.post('/products', createProduct);
 router.put('/products/:productId', updateProduct);

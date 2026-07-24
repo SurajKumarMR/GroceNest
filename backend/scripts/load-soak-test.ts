@@ -1,11 +1,15 @@
+process.env.NODE_ENV = 'test';
+
 import prisma from '../src/utils/prisma';
 import request from 'supertest';
-import { app } from '../src/index';
 
 async function runSoakTest() {
   console.log('=========================================');
   console.log('  Soak Test: Memory & DB Connection Leak  ');
   console.log('=========================================');
+
+  // Dynamic import ensures process.env.NODE_ENV is 'test' when index.ts loads
+  const { app } = await import('../src/index');
 
   try {
     const initialMemory = process.memoryUsage().heapUsed;
@@ -54,4 +58,5 @@ runSoakTest().catch((err) => {
   console.error('❌ Soak test failed with error:', err);
   process.exit(1);
 });
+
 

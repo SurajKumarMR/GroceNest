@@ -4,8 +4,10 @@ import prisma from '../utils/prisma';
 import { createOrderSchema } from '../utils/validation';
 import { OrderStatus, PaymentMethodType, Prisma } from '@prisma/client';
 import { notificationService } from '../services/notification.service';
+import { emailService } from '../services/email.service';
 import { getIO } from '../services/socket.service';
 import { calculateOrderPricing } from '../utils/pricing';
+import { analyticsService } from '../services/analytics.service';
 
 export const createOrder = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -178,7 +180,17 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
             });
         }
 
-        res.status(201).json({ message: 'Orders created successfully', orders: createdOrders });
+        // Track order placement analytics (first order vs repeat order)
+        for (const order of createdOrders) {
+            analyticsService.trackOrderPlaced(userId, order.id, Number(order.totalAmount)).catch(err => {
+                console.warn('[Order] Failed to track order placement analytics:', err);
+            });
+        }
+
+        res.status(201).json({
+            message: 'Orders created successfully',
+            orders: createdOrders
+        });
 
     } catch (error: any) {
         if (error instanceof Error && error.message.includes('Insufficient stock')) {
@@ -353,8 +365,30 @@ export const verifyOrderOTP = async (req: AuthRequest, res: Response): Promise<v
                         createdBy: userId
                     }
                 }
+            },
+            include: {
+                user: true,
+                orderItems: true
             }
         });
+
+        if (updated.user?.email) {
+            const items = updated.orderItems.map(item => ({
+                name: item.productName,
+                quantity: item.quantity,
+                price: Number(item.unitPrice),
+            }));
+            try {
+                await emailService.sendDeliveryReceiptEmail(
+                    updated.user.email,
+                    updated.orderNumber,
+                    Number(updated.totalAmount),
+                    items
+                );
+            } catch (emailErr) {
+                console.error('Failed to send delivery receipt email:', emailErr);
+            }
+        }
 
         res.json({ message: 'OTP verified and order delivered', order: updated });
 

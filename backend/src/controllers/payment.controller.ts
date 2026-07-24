@@ -11,6 +11,8 @@ import prisma from '../utils/prisma';
 import Stripe from 'stripe';
 import { analyticsService } from '../services/analytics.service';
 import { monitoringService } from '../services/monitoring.service';
+import { emailService } from '../services/email.service';
+import { notificationService } from '../services/notification.service';
 
 export const initPayment = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -167,12 +169,15 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
 
     let event: Stripe.Event;
     let body: string | Buffer;
-    if ((req as any).rawBody) {
+    if ((req as any).rawBody && Buffer.isBuffer((req as any).rawBody)) {
         body = (req as any).rawBody;
     } else if (Buffer.isBuffer(req.body)) {
         body = req.body;
+    } else if (typeof req.body === 'string') {
+        body = req.body;
     } else {
-        body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+        res.status(400).send('Webhook Error: Raw request body required for signature verification');
+        return;
     }
 
     try {
@@ -202,7 +207,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
         const metadataUserId = paymentIntent.metadata.userId;
 
         if (orderId) {
-            await prisma.order.update({
+            const updatedOrder = await prisma.order.update({
                 where: { id: orderId },
                 data: {
                     paymentStatus: 'paid',
@@ -212,11 +217,20 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
                             note: 'Payment successful via Stripe'
                         }
                     }
+                },
+                include: {
+                    user: { include: { notificationPreference: true } },
+                    orderItems: true,
                 }
             });
 
             // Track payment completed
             await analyticsService.trackPaymentCompleted(metadataUserId, orderId, Number(paymentIntent.amount) / 100, paymentIntent.id);
+
+            // Send Order Confirmation & Invoice Email via notificationService
+            await notificationService.sendPaymentConfirmationEmail(orderId).catch(err => {
+                console.error('Failed to trigger payment confirmation email via notificationService:', err);
+            });
         }
     } else if (event.type === 'payment_intent.payment_failed') {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
@@ -246,7 +260,72 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
                 failReason
             );
         }
+    } else if (event.type === 'charge.refunded') {
+        const charge = event.data.object as Stripe.Charge;
+        const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : (charge.payment_intent as any)?.id;
+        if (paymentIntentId) {
+            const order = await prisma.order.findFirst({
+                where: { paymentIntentId },
+                include: { user: { include: { notificationPreference: true } } }
+            });
+            if (order) {
+                await prisma.order.update({
+                    where: { id: order.id },
+                    data: { paymentStatus: 'refunded' }
+                });
+                const refundAmount = Number(charge.amount_refunded) / 100;
+                await notificationService.sendRefundNotificationEmail(order.id, refundAmount, 'Refund processed').catch(err => {
+                    console.error('Failed to trigger refund email via notificationService:', err);
+                });
+            }
+        }
     }
 
     res.json({ received: true });
+};
+
+export const processRefund = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { orderId, amount, reason } = req.body;
+        const userId = req.user?.userId;
+
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        const order = await prisma.order.findUnique({
+            where: { id: orderId },
+            include: { user: { include: { notificationPreference: true } } }
+        });
+
+        if (!order) {
+            res.status(404).json({ error: 'Order not found' });
+            return;
+        }
+
+        const refundAmount = amount ? Number(amount) : Number(order.totalAmount);
+
+        const updatedOrder = await prisma.order.update({
+            where: { id: order.id },
+            data: {
+                paymentStatus: 'refunded',
+                statusHistory: {
+                    create: {
+                        status: 'REFUNDED' as any,
+                        note: `Refund processed: £${refundAmount.toFixed(2)}${reason ? ` (${reason})` : ''}`
+                    }
+                }
+            }
+        });
+
+        await notificationService.sendRefundNotificationEmail(order.id, refundAmount, reason).catch(err => {
+            console.error('Failed to trigger refund email via notificationService:', err);
+        });
+
+        res.json({ message: 'Refund processed successfully', order: updatedOrder });
+    } catch (error) {
+        console.error('Process refund error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 };

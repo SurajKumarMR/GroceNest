@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import * as notificationController from '../controllers/notification.controller';
+import * as notificationPreferenceController from '../controllers/notification-preference.controller';
 
 const router = Router();
 
@@ -99,7 +100,7 @@ router.delete('/device-token/:token', authenticate, notificationController.unreg
  *       401:
  *         description: Unauthorized
  */
-router.get('/preferences', authenticate, notificationController.getPreferences);
+router.get('/preferences', authenticate, notificationPreferenceController.getPreferences);
 
 /**
  * @openapi
@@ -129,6 +130,6 @@ router.get('/preferences', authenticate, notificationController.getPreferences);
  *       401:
  *         description: Unauthorized
  */
-router.put('/preferences', authenticate, notificationController.updatePreferences);
+router.put('/preferences', authenticate, notificationPreferenceController.updatePreferences);
 
 export default router;

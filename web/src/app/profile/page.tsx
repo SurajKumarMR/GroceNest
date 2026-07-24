@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { User, Mail, Shield, MapPin, Package, Camera, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { AddressManager } from "@/components/features/AddressManager";
+import { NotificationPreferences } from "@/components/features/NotificationPreferences";
 import { useState, useRef } from "react";
 import api from "@/lib/api";
 import { toast } from "sonner";
@@ -126,6 +127,8 @@ export default function ProfilePage() {
                     </Card>
 
                     <AddressManager />
+
+                    <NotificationPreferences />
 
                     <Card>
                         <CardHeader>

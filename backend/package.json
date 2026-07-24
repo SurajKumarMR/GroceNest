@@ -11,6 +11,10 @@
     "test:unit": "jest --testPathPatterns='__tests__/unit'",
     "test:migration": "jest --testPathPatterns='migration' --testTimeout 120000",
     "test:perf": "jest --testPathPatterns='__tests__/performance'",
+    "test:soak": "NODE_ENV=test node --expose-gc -r ts-node/register scripts/load-soak-test.ts",
+    "test:ramp": "ts-node scripts/load-ramp-test.ts",
+    "test:spike": "ts-node scripts/load-spike-test.ts",
+    "test:smoke": "ts-node scripts/smoke-test.ts",
     "audit": "npm audit",
     "security:audit": "npm audit --audit-level=high"
   },

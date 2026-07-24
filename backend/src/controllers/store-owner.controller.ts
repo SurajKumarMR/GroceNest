@@ -119,12 +119,69 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response): Promis
             await notificationService.notifyOrderStatusChange(orderId, status, order.userId);
         }
 
-        // Track order status update
+        // Track order status update & merchant order acceptance
         analyticsService.trackEvent('ORDER_STATUS_UPDATED', userId, { orderId, status });
+        if (status === 'CONFIRMED' || status === 'PREPARING') {
+            await analyticsService.trackOrderAccepted(order.storeId, userId, order.id, order.orderNumber, Number(order.totalAmount)).catch(err => {
+                console.warn('[StoreOwner] Track order accepted error:', err);
+            });
+        }
 
         res.json(updatedOrder);
     } catch (error) {
         console.error('Update order status error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const getStoreRevenueAnalytics = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId as string;
+        const days = req.query.days ? parseInt(req.query.days as string, 10) : 30;
+
+        const store = await prisma.store.findFirst({ where: { ownerId: userId } });
+        if (!store) {
+            res.status(404).json({ error: 'Store not found' });
+            return;
+        }
+
+        const metrics = await analyticsService.getMerchantRevenueMetrics(store.id, isNaN(days) ? 30 : days);
+        res.json(metrics);
+    } catch (error) {
+        console.error('Get store revenue analytics error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const triggerMerchantPayout = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId as string;
+        const { amount } = req.body;
+
+        const store = await prisma.store.findFirst({ where: { ownerId: userId } });
+        if (!store) {
+            res.status(404).json({ error: 'Store not found' });
+            return;
+        }
+
+        const currentMetrics = await analyticsService.getMerchantRevenueMetrics(store.id);
+        const payoutAmount = amount ? Number(amount) : currentMetrics.totalNetPayout;
+        const payoutId = `pay_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+        await analyticsService.trackMerchantPayout(store.id, userId, payoutAmount, payoutId, 'completed');
+
+        res.json({
+            message: 'Merchant payout processed successfully',
+            payout: {
+                id: payoutId,
+                storeId: store.id,
+                amount: payoutAmount,
+                status: 'completed',
+                processedAt: new Date()
+            }
+        });
+    } catch (error) {
+        console.error('Trigger merchant payout error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };

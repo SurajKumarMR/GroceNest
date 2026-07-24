@@ -65,6 +65,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
             },
         });
         
+        // Track signup event
+        analyticsService.trackSignup(user.id, user.role, 'email_signup').catch(err =>
+            console.warn('[Auth] Track signup event failed (non-fatal):', err.message)
+        );
+
         // SMS delivery — fire-and-forget so missing credentials never block registration
         if (phone) {
             smsService.sendVerificationOTP(phone, phoneVerificationCode).catch(err =>
