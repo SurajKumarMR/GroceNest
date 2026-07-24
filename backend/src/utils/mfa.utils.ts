@@ -37,7 +37,8 @@ export const generateQRCode = async (uri: string): Promise<string> => {
  * Verify a TOTP token against a secret
  */
 export const verifyMFAToken = async (token: string, secret: string): Promise<boolean> => {
-  return await verify({ token, secret }) as unknown as boolean;
+  const result: any = await verify({ token, secret });
+  return typeof result === 'boolean' ? result : Boolean(result?.valid);
 };
 
 /**
