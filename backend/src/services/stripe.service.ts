@@ -128,4 +128,45 @@ export const verifyWebhookSignature = (payload: string | Buffer, signature: stri
     }
 };
 
+export const createRefund = async (
+    paymentIntentId: string,
+    amount?: number,
+    reason?: string
+) => {
+    try {
+        if (!process.env.STRIPE_SECRET_KEY || process.env.NODE_ENV === 'development') {
+            return {
+                id: 're_mock_' + Math.random().toString(36).substring(7),
+                object: 'refund',
+                amount: amount ? Math.round(amount * 100) : 1000,
+                currency: 'usd',
+                payment_intent: paymentIntentId,
+                status: 'succeeded',
+                reason: reason || 'requested_by_customer'
+            } as any;
+        }
+
+        const params: Stripe.RefundCreateParams = {
+            payment_intent: paymentIntentId,
+        };
+
+        if (amount && amount > 0) {
+            params.amount = Math.round(amount * 100);
+        }
+
+        if (reason) {
+            const validReasons = ['duplicate', 'fraudulent', 'requested_by_customer'];
+            params.reason = validReasons.includes(reason)
+                ? (reason as Stripe.RefundCreateParams.Reason)
+                : 'requested_by_customer';
+        }
+
+        const refund = await stripe.refunds.create(params);
+        return refund;
+    } catch (error) {
+        console.error('Stripe createRefund error:', error);
+        throw error;
+    }
+};
+
 export default stripe;

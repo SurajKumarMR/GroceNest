@@ -5,7 +5,8 @@ import {
     verifyWebhookSignature,
     createConnectAccount,
     createAccountLink,
-    retrieveConnectAccount
+    retrieveConnectAccount,
+    createRefund
 } from '../services/stripe.service';
 import prisma from '../utils/prisma';
 import Stripe from 'stripe';
@@ -371,9 +372,17 @@ export const processRefund = async (req: AuthRequest, res: Response): Promise<vo
             return;
         }
 
+        if (!orderId) {
+            res.status(400).json({ error: 'orderId is required' });
+            return;
+        }
+
         const order = await prisma.order.findUnique({
             where: { id: orderId },
-            include: { user: { include: { notificationPreference: true } } }
+            include: { 
+                store: true,
+                user: { include: { notificationPreference: true } } 
+            }
         });
 
         if (!order) {
@@ -381,7 +390,24 @@ export const processRefund = async (req: AuthRequest, res: Response): Promise<vo
             return;
         }
 
+        if (order.paymentStatus === 'refunded') {
+            res.status(400).json({ error: 'Order is already refunded' });
+            return;
+        }
+
         const refundAmount = amount ? Number(amount) : Number(order.totalAmount);
+        let stripeRefund: any = null;
+
+        // Process refund via Stripe if paymentIntentId is present
+        if (order.paymentIntentId) {
+            try {
+                stripeRefund = await createRefund(order.paymentIntentId, refundAmount, reason);
+            } catch (stripeErr: any) {
+                console.error('Stripe refund processing failed:', stripeErr);
+                res.status(500).json({ error: `Stripe refund failed: ${stripeErr.message || 'Unknown error'}` });
+                return;
+            }
+        }
 
         const updatedOrder = await prisma.order.update({
             where: { id: order.id },
@@ -389,19 +415,61 @@ export const processRefund = async (req: AuthRequest, res: Response): Promise<vo
                 paymentStatus: 'refunded',
                 statusHistory: {
                     create: {
-                        status: 'REFUNDED' as any,
+                        status: 'REFUNDED',
                         note: `Refund processed: £${refundAmount.toFixed(2)}${reason ? ` (${reason})` : ''}`
                     }
                 }
             }
         });
 
-        await analyticsService.trackPaymentRefunded(order.userId || userId, order.id, refundAmount, reason);
-        await notificationService.sendRefundNotificationEmail(order.id, refundAmount, reason).catch(err => {
-            console.error('Failed to trigger refund email via notificationService:', err);
-        });
+        // Track analytics safely
+        try {
+            await analyticsService.trackPaymentRefunded(order.userId || userId, order.id, refundAmount, reason);
+        } catch (err) {
+            console.error('Failed to track payment refund in analytics:', err);
+        }
 
-        res.json({ message: 'Refund processed successfully', order: updatedOrder });
+        // Notify Customer (In-App + Email)
+        if (order.userId) {
+            try {
+                await notificationService.createNotification({
+                    userId: order.userId,
+                    type: 'order',
+                    title: 'Refund Processed',
+                    message: `A refund of £${refundAmount.toFixed(2)} has been processed for your order #${order.orderNumber}.`,
+                    data: { orderId: order.id, amount: refundAmount }
+                });
+            } catch (err) {
+                console.error('Failed to send customer in-app refund notification:', err);
+            }
+
+            try {
+                await notificationService.sendRefundNotificationEmail(order.id, refundAmount, reason);
+            } catch (err) {
+                console.error('Failed to trigger customer refund email:', err);
+            }
+        }
+
+        // Notify Merchant / Store Owner
+        if (order.store && order.store.ownerId) {
+            try {
+                await notificationService.createNotification({
+                    userId: order.store.ownerId,
+                    type: 'order',
+                    title: 'Order Refunded',
+                    message: `Order #${order.orderNumber} has been refunded (£${refundAmount.toFixed(2)}).`,
+                    data: { orderId: order.id, storeId: order.storeId, amount: refundAmount }
+                });
+            } catch (err) {
+                console.error('Failed to send merchant refund notification:', err);
+            }
+        }
+
+        res.json({ 
+            message: 'Refund processed successfully', 
+            order: updatedOrder,
+            refund: stripeRefund 
+        });
     } catch (error) {
         console.error('Process refund error:', error);
         res.status(500).json({ error: 'Internal server error' });
