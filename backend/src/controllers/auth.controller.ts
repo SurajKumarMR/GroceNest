@@ -436,8 +436,14 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
             return;
         }
 
+        // Email Verification Requirement: User email must be verified to reset password
+        if (!user.emailVerified) {
+            res.status(400).json({ error: 'Email verification is required before resetting your password. Please verify your email address first.' });
+            return;
+        }
+
         const resetToken = crypto.randomBytes(32).toString('hex');
-        const resetExpires = new Date(Date.now() + 3600000); // 1 hour
+        const resetExpires = new Date(Date.now() + 3600000); // 1 hour expiration
 
         await (prisma.user as any).update({
             where: { id: user.id },
@@ -487,6 +493,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
 
         const hashedPassword = await hashPassword(newPassword);
 
+        // Single-use token invalidation & password update
         await (prisma.user as any).update({
             where: { id: user.id },
             data: {
@@ -494,8 +501,16 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
                 passwordResetToken: null,
                 passwordResetExpires: null,
                 failedLoginAttempts: 0,
-                lockoutUntil: null
+                lockoutUntil: null,
+                lastLogoutAt: new Date()
             }
+        });
+
+        // Revoke active sessions & refresh tokens for account security
+        await SessionService.revokeAllOtherSessions(user.id, '');
+        await (prisma as any).refreshToken.updateMany({
+            where: { userId: user.id },
+            data: { revoked: true }
         });
 
         res.json({ message: 'Password has been reset successfully.' });

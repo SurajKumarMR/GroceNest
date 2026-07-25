@@ -1,5 +1,6 @@
 
 import { Router } from 'express';
+import { rateLimit } from 'express-rate-limit';
 import { register, login, refresh, logout, setupMFA, verifyAndEnableMFA, verifyMFALogin, verifyPhone, deleteAccount, forgotPassword, resetPassword, googleLogin, appleLogin, getActiveSessions, revokeUserSession, revokeOtherSessions } from '../controllers/auth.controller';
 import { authenticate } from '../middleware/auth.middleware';
 
@@ -178,8 +179,17 @@ router.post('/verify-phone', authenticate, verifyPhone);
  */
 router.delete('/account', authenticate, deleteAccount);
 
+// Dedicated rate limiter for password reset (Max 3 requests per hour)
+export const passwordResetLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: ['development', 'test'].includes(process.env.NODE_ENV || '') ? 10000 : 3, // Max 3 requests per hour in prod
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many password reset requests, please try again in an hour.' }
+});
+
 // Recovery Routes
-router.post('/forgot-password', forgotPassword);
+router.post('/forgot-password', passwordResetLimiter, forgotPassword);
 router.post('/reset-password', resetPassword);
 
 // Social Auth Routes

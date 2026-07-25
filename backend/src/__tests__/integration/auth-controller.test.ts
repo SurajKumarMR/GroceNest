@@ -341,6 +341,11 @@ describe('Auth Controller Integration Tests', () => {
         });
 
         it('should set reset token on forgotPassword success', async () => {
+            await prisma.user.update({
+                where: { id: userId },
+                data: { emailVerified: true }
+            });
+
             const res = await request(app)
                 .post('/api/auth/forgot-password')
                 .send({ email: testEmail });
@@ -473,9 +478,18 @@ describe('Auth Controller Integration Tests', () => {
         });
 
         it('should rotate token successfully', async () => {
+            const freshRefreshToken = signRefreshToken({ userId });
+            await (prisma as any).refreshToken.create({
+                data: {
+                    token: freshRefreshToken,
+                    userId,
+                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                }
+            });
+
             const res = await request(app)
                 .post('/api/auth/refresh')
-                .send({ refreshToken: dbRefreshToken });
+                .send({ refreshToken: freshRefreshToken });
             
             expect(res.status).toBe(200);
             expect(res.body).toHaveProperty('token');
@@ -483,14 +497,14 @@ describe('Auth Controller Integration Tests', () => {
 
             // The old token should now be revoked
             const oldStored = await (prisma as any).refreshToken.findUnique({
-                where: { token: dbRefreshToken }
+                where: { token: freshRefreshToken }
             });
             expect(oldStored.revoked).toBe(true);
 
             // Re-using the old refresh token should revoke all tokens for this user
             const resReused = await request(app)
                 .post('/api/auth/refresh')
-                .send({ refreshToken: dbRefreshToken });
+                .send({ refreshToken: freshRefreshToken });
             expect(resReused.status).toBe(401);
         });
 
@@ -548,16 +562,19 @@ describe('Auth Controller Integration Tests', () => {
         });
 
         it('should delete account successfully', async () => {
+            const user = await prisma.user.findUnique({ where: { id: userId } });
+            const activeToken = signToken({ userId: user!.id, email: user!.email, role: user!.role });
+
             const res = await request(app)
                 .delete('/api/auth/account')
-                .set('Authorization', `Bearer ${normalToken}`);
+                .set('Authorization', `Bearer ${activeToken}`);
             
             expect(res.status).toBe(200);
             expect(res.body.message).toContain('deleted');
 
             // User should no longer exist in DB
-            const user = await prisma.user.findUnique({ where: { id: userId } });
-            expect(user).toBeNull();
+            const deletedUser = await prisma.user.findUnique({ where: { id: userId } });
+            expect(deletedUser).toBeNull();
         });
     });
 });

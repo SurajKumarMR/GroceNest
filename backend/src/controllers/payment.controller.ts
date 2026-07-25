@@ -189,7 +189,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
 
     // Idempotency check & atomic event reservation
     try {
-        await (prisma as any).processedWebhook.create({
+        await prisma.processedWebhook.create({
             data: { eventId: event.id }
         });
     } catch (e: any) {
@@ -200,86 +200,162 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
         throw e;
     }
 
-    // Handle the event
-    if (event.type === 'payment_intent.succeeded') {
-        const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        const orderId = paymentIntent.metadata.orderId;
-        const metadataUserId = paymentIntent.metadata.userId;
+    // Handle the event safely with fallback order lookup and error isolation
+    try {
+        if (event.type === 'payment_intent.succeeded') {
+            const paymentIntent = event.data.object as Stripe.PaymentIntent;
+            const metadataOrderId = paymentIntent.metadata?.orderId;
+            let order = metadataOrderId
+                ? await prisma.order.findUnique({
+                    where: { id: metadataOrderId },
+                    include: { user: { include: { notificationPreference: true } }, orderItems: true }
+                })
+                : null;
 
-        if (orderId) {
-            const updatedOrder = await prisma.order.update({
-                where: { id: orderId },
-                data: {
-                    paymentStatus: 'paid',
-                    statusHistory: {
-                        create: {
-                            status: 'PAID',
-                            note: 'Payment successful via Stripe'
-                        }
-                    }
-                },
-                include: {
-                    user: { include: { notificationPreference: true } },
-                    orderItems: true,
-                }
-            });
-
-            // Track payment completed
-            await analyticsService.trackPaymentCompleted(metadataUserId, orderId, Number(paymentIntent.amount) / 100, paymentIntent.id);
-
-            // Send Order Confirmation & Invoice Email via notificationService
-            await notificationService.sendPaymentConfirmationEmail(orderId).catch(err => {
-                console.error('Failed to trigger payment confirmation email via notificationService:', err);
-            });
-        }
-    } else if (event.type === 'payment_intent.payment_failed') {
-        const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        const orderId = paymentIntent.metadata.orderId;
-        const metadataUserId = paymentIntent.metadata.userId;
-
-        if (orderId) {
-            await prisma.order.update({
-                where: { id: orderId },
-                data: {
-                    paymentStatus: 'failed'
-                }
-            });
-
-            // Track payment failed & trigger real-time monitoring alert
-            const failReason = paymentIntent.last_payment_error?.message || 'Payment failed';
-            await analyticsService.trackPaymentFailed(
-                metadataUserId,
-                orderId,
-                Number(paymentIntent.amount) / 100,
-                failReason
-            );
-            await monitoringService.alertPaymentFailure(
-                orderId,
-                metadataUserId,
-                Number(paymentIntent.amount) / 100,
-                failReason
-            );
-        }
-    } else if (event.type === 'charge.refunded') {
-        const charge = event.data.object as Stripe.Charge;
-        const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : (charge.payment_intent as any)?.id;
-        if (paymentIntentId) {
-            const order = await prisma.order.findFirst({
-                where: { paymentIntentId },
-                include: { user: { include: { notificationPreference: true } } }
-            });
-            if (order) {
-                await prisma.order.update({
-                    where: { id: order.id },
-                    data: { paymentStatus: 'refunded' }
-                });
-                const refundAmount = Number(charge.amount_refunded) / 100;
-                await analyticsService.trackPaymentRefunded(order.userId || 'guest', order.id, refundAmount, 'Charge refunded via webhook');
-                await notificationService.sendRefundNotificationEmail(order.id, refundAmount, 'Refund processed').catch(err => {
-                    console.error('Failed to trigger refund email via notificationService:', err);
+            if (!order && paymentIntent.id) {
+                order = await prisma.order.findFirst({
+                    where: { paymentIntentId: paymentIntent.id },
+                    include: { user: { include: { notificationPreference: true } }, orderItems: true }
                 });
             }
+
+            if (order) {
+                const userId = paymentIntent.metadata?.userId || order.userId || 'guest';
+                await prisma.order.update({
+                    where: { id: order.id },
+                    data: {
+                        paymentStatus: 'paid',
+                        statusHistory: {
+                            create: {
+                                status: 'PAID',
+                                note: 'Payment successful via Stripe'
+                            }
+                        }
+                    },
+                    include: {
+                        user: { include: { notificationPreference: true } },
+                        orderItems: true,
+                    }
+                });
+
+                // Track payment completed
+                try {
+                    await analyticsService.trackPaymentCompleted(userId, order.id, Number(paymentIntent.amount) / 100, paymentIntent.id);
+                } catch (err) {
+                    console.error('Failed to track payment completed in analytics:', err);
+                }
+
+                // Send Order Confirmation & Invoice Email via notificationService
+                try {
+                    await notificationService.sendPaymentConfirmationEmail(order.id);
+                } catch (err) {
+                    console.error('Failed to trigger payment confirmation email via notificationService:', err);
+                }
+            }
+        } else if (event.type === 'payment_intent.payment_failed') {
+            const paymentIntent = event.data.object as Stripe.PaymentIntent;
+            const metadataOrderId = paymentIntent.metadata?.orderId;
+            let order = metadataOrderId
+                ? await prisma.order.findUnique({ where: { id: metadataOrderId } })
+                : null;
+
+            if (!order && paymentIntent.id) {
+                order = await prisma.order.findFirst({ where: { paymentIntentId: paymentIntent.id } });
+            }
+
+            if (order) {
+                const failReason = paymentIntent.last_payment_error?.message || 'Payment failed';
+                const userId = paymentIntent.metadata?.userId || order.userId || 'guest';
+
+                await prisma.order.update({
+                    where: { id: order.id },
+                    data: {
+                        paymentStatus: 'failed',
+                        statusHistory: {
+                            create: {
+                                status: 'PAYMENT_FAILED',
+                                note: `Payment failed: ${failReason}`
+                            }
+                        }
+                    }
+                });
+
+                // Track payment failed & trigger real-time monitoring alert
+                try {
+                    await analyticsService.trackPaymentFailed(
+                        userId,
+                        order.id,
+                        Number(paymentIntent.amount) / 100,
+                        failReason
+                    );
+                } catch (err) {
+                    console.error('Failed to track payment failure in analytics:', err);
+                }
+
+                try {
+                    await monitoringService.alertPaymentFailure(
+                        order.id,
+                        userId,
+                        Number(paymentIntent.amount) / 100,
+                        failReason
+                    );
+                } catch (err) {
+                    console.error('Failed to send payment failure monitoring alert:', err);
+                }
+            }
+        } else if (event.type === 'charge.refunded') {
+            const charge = event.data.object as Stripe.Charge;
+            const metadataOrderId = charge.metadata?.orderId;
+            const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : (charge.payment_intent as any)?.id;
+
+            let order = metadataOrderId
+                ? await prisma.order.findUnique({
+                    where: { id: metadataOrderId },
+                    include: { user: { include: { notificationPreference: true } } }
+                })
+                : null;
+
+            if (!order && paymentIntentId) {
+                order = await prisma.order.findFirst({
+                    where: { paymentIntentId },
+                    include: { user: { include: { notificationPreference: true } } }
+                });
+            }
+
+            if (order) {
+                const refundAmount = Number(charge.amount_refunded) / 100;
+                await prisma.order.update({
+                    where: { id: order.id },
+                    data: {
+                        paymentStatus: 'refunded',
+                        statusHistory: {
+                            create: {
+                                status: 'REFUNDED',
+                                note: `Charge refunded via webhook: £${refundAmount.toFixed(2)}`
+                            }
+                        }
+                    }
+                });
+
+                try {
+                    await analyticsService.trackPaymentRefunded(order.userId || 'guest', order.id, refundAmount, 'Charge refunded via webhook');
+                } catch (err) {
+                    console.error('Failed to track payment refund in analytics:', err);
+                }
+
+                try {
+                    await notificationService.sendRefundNotificationEmail(order.id, refundAmount, 'Refund processed');
+                } catch (err) {
+                    console.error('Failed to trigger refund email via notificationService:', err);
+                }
+            }
         }
+    } catch (processingError) {
+        console.error(`Error processing webhook event ${event.id}:`, processingError);
+        // Release processedWebhook lock on failure so Stripe can retry
+        await prisma.processedWebhook.delete({ where: { eventId: event.id } }).catch(() => {});
+        res.status(500).send('Webhook processing error');
+        return;
     }
 
     res.json({ received: true });
