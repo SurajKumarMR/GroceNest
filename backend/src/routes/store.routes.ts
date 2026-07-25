@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { createStore, getStores, getStoreBySlug, updateStoreLogo, updateStoreCover } from '../controllers/store.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { upload } from '../middleware/upload.middleware';
+import { cacheMiddleware } from '../middleware/cache.middleware';
 
 const router = Router();
 
@@ -47,7 +48,7 @@ const router = Router();
  *                 $ref: '#/components/schemas/Store'
  */
 router.post('/', authenticate, createStore);
-router.get('/', getStores);
+router.get('/', cacheMiddleware(900, 'cache:stores:'), getStores);
 
 /**
  * @openapi
@@ -68,7 +69,7 @@ router.get('/', getStores);
  *             schema:
  *               $ref: '#/components/schemas/Store'
  */
-router.get('/:slug', getStoreBySlug);
+router.get('/:slug', cacheMiddleware(900, 'cache:stores:'), getStoreBySlug);
 
 /**
  * @openapi

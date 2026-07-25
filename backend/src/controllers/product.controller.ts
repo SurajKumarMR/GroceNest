@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../utils/prisma';
 import { productSchema } from '../utils/validation';
+import { redisService } from '../services/redis.service';
 
 export const createProduct = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -38,6 +39,9 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
                 ...productData,
             },
         });
+
+        // Invalidate product catalog cache
+        await redisService.delByPattern('cache:products:*');
 
         res.status(201).json(product);
     } catch (error) {

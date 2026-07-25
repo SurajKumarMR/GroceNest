@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { createProduct, getProducts, getCategories } from '../controllers/product.controller';
 import { authenticate } from '../middleware/auth.middleware';
+import { cacheMiddleware } from '../middleware/cache.middleware';
 
 const router = Router();
 
@@ -20,7 +21,7 @@ const router = Router();
  *               type: array
  *               items: { type: string, example: "Dairy" }
  */
-router.get('/categories', getCategories);
+router.get('/categories', cacheMiddleware(3600, 'cache:categories:'), getCategories);
 
 /**
  * @openapi
@@ -63,6 +64,6 @@ router.get('/categories', getCategories);
  *                 $ref: '#/components/schemas/Product'
  */
 router.post('/', authenticate, createProduct);
-router.get('/', getProducts);
+router.get('/', cacheMiddleware(300, 'cache:products:'), getProducts);
 
 export default router;

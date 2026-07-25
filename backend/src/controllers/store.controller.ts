@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../utils/prisma';
 import { storeSchema } from '../utils/validation';
 import { analyticsService } from '../services/analytics.service';
+import { redisService } from '../services/redis.service';
 
 export const createStore = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -38,8 +39,9 @@ export const createStore = async (req: AuthRequest, res: Response): Promise<void
             },
         });
 
-        // Track store creation
+        // Track store creation & invalidate cache
         analyticsService.trackStoreCreated(userId, store.id, store.name);
+        await redisService.delByPattern('cache:stores:*');
 
         res.status(201).json(store);
     } catch (error) {
