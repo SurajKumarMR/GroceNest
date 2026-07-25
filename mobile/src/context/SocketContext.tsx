@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { socketService } from '../services/socket.service';
 import { useAuth } from './AuthContext';
@@ -17,11 +16,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [isConnected, setIsConnected] = useState(false);
 
     useEffect(() => {
+        let activeSocket: Socket | null = null;
+
         if (user) {
             const connectSocket = async () => {
-                const s = await socketService.connect();
-                setSocket(s);
-                setIsConnected(true);
+                activeSocket = await socketService.connect();
+                setSocket(activeSocket);
+                setIsConnected(activeSocket.connected);
+
+                activeSocket.on?.('connect', () => setIsConnected(true));
+                activeSocket.on?.('reconnect', () => setIsConnected(true));
+                activeSocket.on?.('disconnect', () => setIsConnected(false));
+                activeSocket.on?.('connect_error', () => setIsConnected(false));
             };
             connectSocket();
         } else {
@@ -31,6 +37,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
 
         return () => {
+            if (activeSocket) {
+                activeSocket.off?.('connect');
+                activeSocket.off?.('reconnect');
+                activeSocket.off?.('disconnect');
+                activeSocket.off?.('connect_error');
+            }
             socketService.disconnect();
         };
     }, [user]);

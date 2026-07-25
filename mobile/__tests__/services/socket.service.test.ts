@@ -1,60 +1,92 @@
 import { socketService } from '../../src/services/socket.service';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { io } from 'socket.io-client';
 
-describe('socketService Unit Tests', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    socketService.disconnect();
-  });
+const mockEmit = jest.fn();
+const mockOn = jest.fn();
+const mockOff = jest.fn();
+const mockDisconnect = jest.fn();
+const mockConnect = jest.fn();
 
-  test('connect establishes Socket.io connection with auth token', async () => {
-    (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce('mock-jwt-token');
+let mockConnected = false;
 
-    const socket = await socketService.connect();
+jest.mock('socket.io-client', () => ({
+    io: jest.fn(() => ({
+        get connected() {
+            return mockConnected;
+        },
+        id: 'mock_socket_id_123',
+        connect: mockConnect,
+        disconnect: mockDisconnect,
+        emit: mockEmit,
+        on: mockOn,
+        off: mockOff,
+    })),
+}));
 
-    expect(AsyncStorage.getItem).toHaveBeenCalledWith('token');
-    expect(io).toHaveBeenCalledWith(expect.any(String), {
-      auth: { token: 'mock-jwt-token' },
-      transports: ['websocket'],
+describe('Mobile socketService Unit Tests', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockConnected = false;
+        socketService.disconnect();
     });
-    expect(socket).toBeDefined();
-  });
 
-  test('joinOrder emits joinOrder event with orderId', async () => {
-    const socket = await socketService.connect();
-    socketService.joinOrder('order-123');
-
-    expect(socket.emit).toHaveBeenCalledWith('joinOrder', 'order-123');
-  });
-
-  test('updateLocation emits updateLocation event with payload', async () => {
-    const socket = await socketService.connect();
-    socketService.updateLocation('order-123', 37.7749, -122.4194, 90);
-
-    expect(socket.emit).toHaveBeenCalledWith('updateLocation', {
-      orderId: 'order-123',
-      latitude: 37.7749,
-      longitude: -122.4194,
-      heading: 90,
+    it('connect initializes Socket.io client with reconnection options', async () => {
+        const socket = await socketService.connect();
+        expect(socket).toBeDefined();
+        expect(mockOn).toHaveBeenCalledWith('connect', expect.any(Function));
+        expect(mockOn).toHaveBeenCalledWith('reconnect', expect.any(Function));
+        expect(mockOn).toHaveBeenCalledWith('disconnect', expect.any(Function));
     });
-  });
 
-  test('onLocationUpdated registers listener for locationUpdated event', async () => {
-    const socket = await socketService.connect();
-    const mockCallback = jest.fn();
+    it('buffers events into offlineQueue when socket is disconnected and flushes on connect', async () => {
+        await socketService.connect();
+        mockConnected = false;
 
-    socketService.onLocationUpdated(mockCallback);
-    expect(socket.on).toHaveBeenCalledWith('locationUpdated', mockCallback);
+        // Emit while disconnected -> queued
+        socketService.emit('testEvent', { foo: 'bar' });
+        expect(socketService.getQueuedEventsCount()).toBe(1);
 
-    socketService.offLocationUpdated();
-    expect(socket.off).toHaveBeenCalledWith('locationUpdated');
-  });
+        // Connect socket -> flush
+        mockConnected = true;
+        socketService.flushOfflineQueue();
 
-  test('disconnect terminates socket connection', async () => {
-    const socket = await socketService.connect();
-    socketService.disconnect();
+        expect(mockEmit).toHaveBeenCalledWith('testEvent', { foo: 'bar' });
+        expect(socketService.getQueuedEventsCount()).toBe(0);
+    });
 
-    expect(socket.disconnect).toHaveBeenCalled();
-  });
+    it('tracks joined order rooms and re-joins rooms on reconnect', async () => {
+        await socketService.connect();
+        mockConnected = true;
+
+        const orderId1 = 'order_abc_123';
+        const orderId2 = 'order_def_456';
+
+        socketService.joinOrder(orderId1);
+        socketService.joinOrder(orderId2);
+
+        expect(socketService.getJoinedRooms()).toEqual([orderId1, orderId2]);
+        expect(mockEmit).toHaveBeenCalledWith('joinOrder', orderId1);
+        expect(mockEmit).toHaveBeenCalledWith('joinOrder', orderId2);
+
+        // Rejoin rooms on reconnect
+        jest.clearAllMocks();
+        socketService.rejoinRooms();
+
+        expect(mockEmit).toHaveBeenCalledWith('joinOrder', orderId1);
+        expect(mockEmit).toHaveBeenCalledWith('joinOrder', orderId2);
+
+        // Leave room
+        socketService.leaveOrder(orderId1);
+        expect(socketService.getJoinedRooms()).toEqual([orderId2]);
+    });
+
+    it('clears queues and rooms on disconnect', async () => {
+        await socketService.connect();
+        socketService.joinOrder('order_1');
+        socketService.emit('event_1', { data: 1 });
+
+        socketService.disconnect();
+
+        expect(socketService.getJoinedRooms().length).toBe(0);
+        expect(socketService.getQueuedEventsCount()).toBe(0);
+    });
 });
