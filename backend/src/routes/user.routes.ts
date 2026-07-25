@@ -1,6 +1,6 @@
 
 import { Router } from 'express';
-import { getProfile, updateProfile, createAddress, getAddresses, deleteAddress, updateAvatar } from '../controllers/user.controller';
+import { getProfile, updateProfile, createAddress, getAddresses, deleteAddress, updateAvatar, registerFCMToken } from '../controllers/user.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { upload } from '../middleware/upload.middleware';
 
@@ -108,5 +108,31 @@ router.get('/addresses', authenticate, getAddresses);
  *         description: Address deleted successfully
  */
 router.delete('/addresses/:addressId', authenticate, deleteAddress);
+
+/**
+ * @openapi
+ * /api/users/fcm-token:
+ *   post:
+ *     summary: Register FCM device token for push notifications
+ *     tags: [Users]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [fcmToken]
+ *             properties:
+ *               fcmToken: { type: string, example: "fcm_token_xyz_123" }
+ *               platform: { type: string, example: "android" }
+ *     responses:
+ *       200:
+ *         description: FCM Token registered successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/fcm-token', authenticate, registerFCMToken);
 
 export default router;

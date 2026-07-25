@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { socketService } from '../services/socket.service';
 import { useAuth } from './AuthContext';
 import api from '../services/api';
+import { setupPushNotifications } from '../services/notifications';
 
 export interface Notification {
     id: string;
@@ -54,6 +55,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
             setupSocket();
             refreshNotifications();
+            setupPushNotifications().catch(err => {
+                console.warn('[NotificationContext] FCM setup error:', err);
+            });
         } else {
             setNotifications([]);
         }

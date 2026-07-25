@@ -194,3 +194,32 @@ export const updateAvatar = async (req: AuthRequest, res: Response): Promise<voi
         res.status(500).json({ error: 'Internal server error' });
     }
 };
+
+export const registerFCMToken = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId;
+        const token = req.body.fcmToken || req.body.token;
+        const platform = req.body.platform;
+
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        if (!token) {
+            res.status(400).json({ error: 'FCM Token is required' });
+            return;
+        }
+
+        await prisma.deviceToken.upsert({
+            where: { token },
+            update: { userId, platform },
+            create: { token, userId, platform }
+        });
+
+        res.status(200).json({ success: true, message: 'FCM Token registered successfully' });
+    } catch (error) {
+        console.error('Register FCM token error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
