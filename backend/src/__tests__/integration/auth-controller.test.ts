@@ -19,8 +19,8 @@ jest.mock('../../services/sms.service', () => ({
 }));
 jest.mock('../../services/analytics.service', () => ({
     analyticsService: {
-        trackSignup: jest.fn(),
-        trackLogin: jest.fn()
+        trackSignup: jest.fn().mockResolvedValue(true),
+        trackLogin: jest.fn().mockResolvedValue(true)
     }
 }));
 jest.mock('../../utils/pwned.utils', () => ({

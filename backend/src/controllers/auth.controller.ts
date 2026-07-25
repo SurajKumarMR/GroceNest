@@ -66,7 +66,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         });
         
         // Track signup event
-        analyticsService.trackSignup(user.id, user.role, 'email_signup').catch(err =>
+        Promise.resolve(analyticsService.trackSignup(user.id, user.role, 'email_signup')).catch(err =>
             console.warn('[Auth] Track signup event failed (non-fatal):', err.message)
         );
 
@@ -101,9 +101,6 @@ export const register = async (req: Request, res: Response): Promise<void> => {
             sameSite: 'strict',
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
-
-        // Track signup event
-        analyticsService.trackSignup(user.id, user.role);
 
         res.status(201).json({ 
             token, 
@@ -641,9 +638,16 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
+        // Fetch user to ensure user exists and is active, and retrieve role/email for new access token
+        const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+        if (!user || !user.isActive) {
+            res.status(401).json({ error: 'User account is inactive or not found.' });
+            return;
+        }
+
         // Rotate token
-        const newAccessToken = signToken({ userId: payload.userId });
-        const newRefreshToken = signRefreshToken({ userId: payload.userId });
+        const newAccessToken = signToken({ userId: user.id, email: user.email, role: user.role });
+        const newRefreshToken = signRefreshToken({ userId: user.id });
 
         await (prisma as any).$transaction([
             (prisma as any).refreshToken.update({
