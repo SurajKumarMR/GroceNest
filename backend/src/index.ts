@@ -14,6 +14,7 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import prisma from './utils/prisma';
@@ -28,6 +29,9 @@ import { initSocket } from './services/socket.service';
 export const app: Express = express();
 const server = http.createServer(app);
 const port = process.env.PORT || 8000;
+
+// Enable API Response Compression (Gzip / Deflate)
+app.use(compression());
 
 // Initialize Socket.io
 initSocket(server);
