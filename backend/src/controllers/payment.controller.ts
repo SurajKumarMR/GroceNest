@@ -486,3 +486,193 @@ export const getFinancialAnalytics = async (req: AuthRequest, res: Response): Pr
         res.status(500).json({ error: 'Internal server error' });
     }
 };
+
+export const getPaymentMethods = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        const methods = await prisma.paymentMethod.findMany({
+            where: { userId },
+            orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }]
+        });
+
+        // Mask/sanitize for response security
+        const sanitized = methods.map(pm => ({
+            id: pm.id,
+            type: pm.type,
+            cardBrand: pm.cardBrand,
+            cardLastFour: pm.cardLastFour,
+            cardExpMonth: pm.cardExpMonth,
+            cardExpYear: pm.cardExpYear,
+            billingAddressId: pm.billingAddressId,
+            isDefault: pm.isDefault,
+            createdAt: pm.createdAt
+        }));
+
+        res.json({ paymentMethods: sanitized });
+    } catch (error) {
+        console.error('Get payment methods error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const addPaymentMethod = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        const {
+            type,
+            stripePaymentMethodId,
+            cardBrand,
+            cardLastFour,
+            cardExpMonth,
+            cardExpYear,
+            billingAddressId,
+            isDefault
+        } = req.body;
+
+        const count = await prisma.paymentMethod.count({ where: { userId } });
+        const shouldBeDefault = isDefault === true || count === 0;
+
+        if (shouldBeDefault && count > 0) {
+            await prisma.paymentMethod.updateMany({
+                where: { userId },
+                data: { isDefault: false }
+            });
+        }
+
+        const methodType = type || 'CARD';
+
+        const paymentMethod = await prisma.paymentMethod.create({
+            data: {
+                userId,
+                type: methodType as any,
+                stripePaymentMethodId: stripePaymentMethodId || null,
+                cardBrand: cardBrand || 'Visa',
+                cardLastFour: cardLastFour || '4242',
+                cardExpMonth: cardExpMonth ? parseInt(cardExpMonth, 10) : undefined,
+                cardExpYear: cardExpYear ? parseInt(cardExpYear, 10) : undefined,
+                billingAddressId: billingAddressId || null,
+                isDefault: shouldBeDefault
+            }
+        });
+
+        res.status(201).json({
+            message: 'Payment method added successfully',
+            paymentMethod: {
+                id: paymentMethod.id,
+                type: paymentMethod.type,
+                cardBrand: paymentMethod.cardBrand,
+                cardLastFour: paymentMethod.cardLastFour,
+                cardExpMonth: paymentMethod.cardExpMonth,
+                cardExpYear: paymentMethod.cardExpYear,
+                billingAddressId: paymentMethod.billingAddressId,
+                isDefault: paymentMethod.isDefault,
+                createdAt: paymentMethod.createdAt
+            }
+        });
+    } catch (error) {
+        console.error('Add payment method error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const deletePaymentMethod = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        const methodId = req.params.id as string;
+        const targetMethod = await prisma.paymentMethod.findFirst({
+            where: { id: methodId, userId }
+        });
+
+        if (!targetMethod) {
+            res.status(404).json({ error: 'Payment method not found' });
+            return;
+        }
+
+        const wasDefault = targetMethod.isDefault;
+
+        await prisma.paymentMethod.delete({
+            where: { id: targetMethod.id }
+        });
+
+        if (wasDefault) {
+            const remaining = await prisma.paymentMethod.findFirst({
+                where: { userId },
+                orderBy: { createdAt: 'desc' }
+            });
+            if (remaining) {
+                await prisma.paymentMethod.update({
+                    where: { id: remaining.id },
+                    data: { isDefault: true }
+                });
+            }
+        }
+
+        res.json({ message: 'Payment method deleted successfully' });
+    } catch (error) {
+        console.error('Delete payment method error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const setDefaultPaymentMethod = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        const methodId = req.params.id as string;
+        const targetMethod = await prisma.paymentMethod.findFirst({
+            where: { id: methodId, userId }
+        });
+
+        if (!targetMethod) {
+            res.status(404).json({ error: 'Payment method not found' });
+            return;
+        }
+
+        await prisma.paymentMethod.updateMany({
+            where: { userId },
+            data: { isDefault: false }
+        });
+
+        const updated = await prisma.paymentMethod.update({
+            where: { id: targetMethod.id },
+            data: { isDefault: true }
+        });
+
+        res.json({
+            message: 'Default payment method updated successfully',
+            paymentMethod: {
+                id: updated.id,
+                type: updated.type,
+                cardBrand: updated.cardBrand,
+                cardLastFour: updated.cardLastFour,
+                cardExpMonth: updated.cardExpMonth,
+                cardExpYear: updated.cardExpYear,
+                billingAddressId: updated.billingAddressId,
+                isDefault: updated.isDefault,
+                createdAt: updated.createdAt
+            }
+        });
+    } catch (error) {
+        console.error('Set default payment method error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};

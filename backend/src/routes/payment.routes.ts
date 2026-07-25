@@ -189,4 +189,100 @@ router.post('/refund', authenticate, paymentController.processRefund);
  */
 router.get('/analytics/financials', authenticate, paymentController.getFinancialAnalytics);
 
+/**
+ * @openapi
+ * /api/payments/methods:
+ *   get:
+ *     summary: Retrieve saved payment methods for the authenticated user
+ *     tags:
+ *       - Payment Methods
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of saved payment methods
+ *       401:
+ *         description: Unauthorized
+ *   post:
+ *     summary: Add a new saved payment method
+ *     tags:
+ *       - Payment Methods
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               type:
+ *                 type: string
+ *               stripePaymentMethodId:
+ *                 type: string
+ *               cardBrand:
+ *                 type: string
+ *               cardLastFour:
+ *                 type: string
+ *               cardExpMonth:
+ *                 type: integer
+ *               cardExpYear:
+ *                 type: integer
+ *               isDefault:
+ *                 type: boolean
+ *     responses:
+ *       201:
+ *         description: Payment method added successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/methods', authenticate, paymentController.getPaymentMethods);
+router.post('/methods', authenticate, paymentController.addPaymentMethod);
+
+/**
+ * @openapi
+ * /api/payments/methods/{id}:
+ *   delete:
+ *     summary: Delete a saved payment method
+ *     tags:
+ *       - Payment Methods
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Payment method deleted successfully
+ *       404:
+ *         description: Payment method not found
+ */
+router.delete('/methods/:id', authenticate, paymentController.deletePaymentMethod);
+
+/**
+ * @openapi
+ * /api/payments/methods/{id}/default:
+ *   patch:
+ *     summary: Set a saved payment method as default
+ *     tags:
+ *       - Payment Methods
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Default payment method updated successfully
+ *       404:
+ *         description: Payment method not found
+ */
+router.patch('/methods/:id/default', authenticate, paymentController.setDefaultPaymentMethod);
+
 export default router;
