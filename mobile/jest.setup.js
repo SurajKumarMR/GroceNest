@@ -1,5 +1,8 @@
 
+global.IS_REACT_ACT_ENVIRONMENT = true;
+
 import 'react-native-gesture-handler/jestSetup';
+
 
 jest.mock('@stripe/stripe-react-native', () => ({
     useStripe: () => ({
@@ -80,3 +83,39 @@ jest.mock('react-native-svg', () => {
         G: 'G',
     };
 });
+
+jest.mock('@env', () => ({
+    SOCKET_URL: 'http://localhost:8000',
+}), { virtual: true });
+
+jest.mock('socket.io-client', () => {
+    const mSocket = {
+        connect: jest.fn(),
+        disconnect: jest.fn(),
+        on: jest.fn(),
+        off: jest.fn(),
+        emit: jest.fn(),
+        id: 'mock-socket-id',
+        connected: false,
+    };
+    return {
+        io: jest.fn(() => mSocket),
+        Socket: jest.fn(),
+    };
+});
+
+jest.mock('lucide-react-native', () => {
+    const React = require('react');
+    const { View } = require('react-native');
+    return new Proxy(
+        {},
+        {
+            get: (target, prop) => {
+                if (prop === '__esModule') return true;
+                return (props) => React.createElement(View, { testID: `icon-${String(prop)}`, ...props });
+            },
+        }
+    );
+});
+
+

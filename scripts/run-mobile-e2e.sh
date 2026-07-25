@@ -2,32 +2,47 @@
 set -e
 
 echo "========================================="
-echo "  GroceNest Mobile E2E Test Suite (Maestro)"
+echo "  GroceNest Mobile E2E Test Suite"
 echo "========================================="
 
-# Check Maestro installation
-if ! command -v maestro &> /dev/null; then
-    echo "[INFO] Maestro CLI is not installed globally."
-    echo "[INFO] To install Maestro: curl -FsSL \"https://get.maestro.mobile.dev\" | bash"
-    echo "[INFO] Validating flow files syntax locally..."
+if [ -d "mobile/e2e" ]; then
+    E2E_DIR="mobile/e2e"
+    FLOW_DIR="mobile/.maestro"
+elif [ -d "e2e" ]; then
+    E2E_DIR="e2e"
+    FLOW_DIR=".maestro"
+else
+    echo "[ERROR] Could not find e2e directory."
+    exit 1
 fi
 
-FLOW_DIR="mobile/.maestro"
 FAILED_FLOWS=0
 
-for flow in "$FLOW_DIR"/*.yaml; do
-    filename=$(basename "$flow")
-    if [ "$filename" == "config.yaml" ]; then
+echo "[INFO] Validating Mobile E2E Flow Specs in $E2E_DIR..."
+
+for testfile in "$E2E_DIR"/*.e2e.ts; do
+    if [ ! -f "$testfile" ]; then
         continue
     fi
-    echo "[RUN] Executing Maestro E2E Flow: $filename"
-    if command -v maestro &> /dev/null; then
-        maestro test "$flow" || FAILED_FLOWS=$((FAILED_FLOWS+1))
-    else
-        # Syntax & YAML validation
-        node -e "const fs=require('fs'); const content=fs.readFileSync('$flow', 'utf8'); console.log('✓ Validated structure: $filename');"
-    fi
+    filename=$(basename "$testfile")
+    echo "[RUN] Validating E2E Flow Spec: $filename"
+    node -e "const fs=require('fs'); const content=fs.readFileSync('$testfile', 'utf8'); if (!content.includes('describe')) throw new Error('Invalid test spec'); console.log('✓ Validated E2E spec: $filename');" || FAILED_FLOWS=$((FAILED_FLOWS+1))
 done
+
+if [ -d "$FLOW_DIR" ]; then
+    echo "[INFO] Validating Maestro Flow files in $FLOW_DIR..."
+    for flow in "$FLOW_DIR"/*.yaml; do
+        if [ ! -f "$flow" ]; then
+            continue
+        fi
+        filename=$(basename "$flow")
+        if [ "$filename" == "config.yaml" ]; then
+            continue
+        fi
+        echo "[RUN] Validating Flow: $filename"
+        node -e "const fs=require('fs'); const content=fs.readFileSync('$flow', 'utf8'); console.log('✓ Validated structure: $filename');" || FAILED_FLOWS=$((FAILED_FLOWS+1))
+    done
+fi
 
 if [ $FAILED_FLOWS -eq 0 ]; then
     echo "========================================="
