@@ -1,6 +1,6 @@
 import prisma from '../src/utils/prisma';
 
-async function auditIndexes() {
+export async function auditIndexes() {
   console.log('=========================================');
   console.log('  PostgreSQL Database Index Audit       ');
   console.log('=========================================');
@@ -13,12 +13,20 @@ async function auditIndexes() {
       ORDER BY tablename, indexname;
     `;
 
-    console.log(`[INFO] Found ${rawIndexes.length} active database indexes:`);
+    console.log(`[INFO] Found ${rawIndexes.length} active database indexes.`);
     const hotPathColumns = [
-      { table: 'User', columns: ['email', 'role'] },
-      { table: 'Store', columns: ['slug', 'ownerId'] },
-      { table: 'Product', columns: ['storeId', 'slug', 'status'] },
-      { table: 'Order', columns: ['userId', 'storeId', 'orderNumber', 'status'] },
+      { table: 'User', columns: ['email', 'role', 'createdAt', 'updatedAt'] },
+      { table: 'Store', columns: ['slug', 'ownerId', 'isActive', 'createdAt'] },
+      { table: 'Product', columns: ['storeId', 'slug', 'status', 'categoryId', 'createdAt', 'updatedAt'] },
+      { table: 'Order', columns: ['userId', 'storeId', 'driverId', 'orderNumber', 'status', 'paymentStatus', 'createdAt', 'updatedAt'] },
+      { table: 'OrderItem', columns: ['orderId', 'productId', 'productVariantId', 'createdAt'] },
+      { table: 'OrderStatusHistory', columns: ['orderId', 'createdBy', 'createdAt'] },
+      { table: 'Review', columns: ['orderId', 'userId', 'storeId', 'productId', 'createdAt'] },
+      { table: 'PaymentMethod', columns: ['userId', 'billingAddressId', 'isDefault'] },
+      { table: 'DriverLocation', columns: ['driverId', 'orderId', 'createdAt'] },
+      { table: 'Notification', columns: ['userId', 'isRead', 'createdAt'] },
+      { table: 'NotificationLog', columns: ['userId', 'status', 'type', 'sentAt'] },
+      { table: 'AnalyticsEvent', columns: ['eventName', 'timestamp', 'userId'] },
       { table: 'ProcessedWebhook', columns: ['eventId'] },
     ];
 
@@ -39,15 +47,21 @@ async function auditIndexes() {
 
     if (allIndexesVerified) {
       console.log('\n=========================================');
-      console.log('  ALL HOT PATH COLUMNS ARE COVERED BY INDEXES!');
+      console.log('  ALL HOT PATH & COMPOSITE COLUMNS ARE COVERED BY INDEXES!');
       console.log('=========================================');
+    } else {
+      console.warn('\nSome columns are missing indexes!');
     }
+
+    return { totalIndexes: rawIndexes.length, allIndexesVerified };
   } catch (error) {
     console.error('Database index audit failed:', error);
-    process.exit(1);
+    throw error;
   } finally {
     await prisma.$disconnect();
   }
 }
 
-auditIndexes();
+if (require.main === module) {
+  auditIndexes().catch(() => process.exit(1));
+}
