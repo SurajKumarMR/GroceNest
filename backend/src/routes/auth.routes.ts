@@ -1,6 +1,6 @@
 
 import { Router } from 'express';
-import { register, login, refresh, logout, setupMFA, verifyAndEnableMFA, verifyMFALogin, verifyPhone, deleteAccount, forgotPassword, resetPassword, googleLogin, appleLogin } from '../controllers/auth.controller';
+import { register, login, refresh, logout, setupMFA, verifyAndEnableMFA, verifyMFALogin, verifyPhone, deleteAccount, forgotPassword, resetPassword, googleLogin, appleLogin, getActiveSessions, revokeUserSession, revokeOtherSessions } from '../controllers/auth.controller';
 import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -123,7 +123,12 @@ router.post('/refresh', refresh);
  *       204:
  *         description: Logged out successfully
  */
-router.post('/logout', logout);
+router.post('/logout', (req, res, next) => {
+    if (req.headers.authorization) {
+        return authenticate(req as any, res, next);
+    }
+    next();
+}, logout);
 
 /**
  * @openapi
@@ -258,5 +263,62 @@ router.post('/mfa/enable', authenticate, verifyAndEnableMFA);
  *         description: Invalid OTP or backup code
  */
 router.post('/mfa/verify', verifyMFALogin);
+
+/**
+ * @openapi
+ * /api/auth/sessions:
+ *   get:
+ *     summary: Retrieve active user sessions
+ *     tags:
+ *       - Session Management
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of active sessions for current user
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/sessions', authenticate, getActiveSessions);
+
+/**
+ * @openapi
+ * /api/auth/sessions/{sessionId}:
+ *   delete:
+ *     summary: Logout / revoke a specific user session
+ *     tags:
+ *       - Session Management
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Session revoked successfully
+ *       404:
+ *         description: Session not found
+ */
+router.delete('/sessions/:sessionId', authenticate, revokeUserSession);
+
+/**
+ * @openapi
+ * /api/auth/sessions/revoke-others:
+ *   post:
+ *     summary: Logout of all other active sessions except current
+ *     tags:
+ *       - Session Management
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All other sessions revoked
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/sessions/revoke-others', authenticate, revokeOtherSessions);
 
 export default router;

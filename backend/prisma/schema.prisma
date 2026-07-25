@@ -54,6 +54,7 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   lastLoginAt     DateTime?
+  lastLogoutAt    DateTime?
   
   // Security & Lockout
   failedLoginAttempts    Int       @default(0)
@@ -103,6 +104,8 @@ model User {
   notificationPreference  NotificationPreference?
   analyticsEvents         AnalyticsEvent[]
 
+  sessions                UserSession[]
+
   @@index([role])
 }
 
@@ -118,6 +121,27 @@ model RefreshToken {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+model UserSession {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken     String?  @unique
+  ipAddress        String?
+  userAgent        String?
+  deviceType       String?  // 'desktop', 'mobile', 'tablet', 'unknown'
+  location         String?
+  isActive         Boolean  @default(true)
+  isSuspicious     Boolean  @default(false)
+  suspiciousReason String?
+  lastActiveAt     DateTime @default(now())
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isActive])
 }
 
 model ProcessedWebhook {

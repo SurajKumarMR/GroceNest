@@ -284,10 +284,12 @@ describe('Auth Controller Integration Tests', () => {
 
         // Clean up MFA for next tests
         afterAll(async () => {
-            await prisma.user.update({
-                where: { id: userId },
-                data: { isTwoFactorEnabled: false, twoFactorSecret: null }
-            });
+            if (userId) {
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: { isTwoFactorEnabled: false, twoFactorSecret: null }
+                });
+            }
         });
     });
 
@@ -492,31 +494,49 @@ describe('Auth Controller Integration Tests', () => {
             expect(resReused.status).toBe(401);
         });
 
-        it('should logout successfully and revoke refresh token', async () => {
-            // Register a temporary user to get a fresh refresh token
+        it('should logout successfully, invalidate access tokens, and revoke refresh tokens across sessions', async () => {
             const regRes = await request(app)
                 .post('/api/auth/register')
                 .send({
-                    email: `logout-${timestamp}@example.com`,
+                    email: `logout-full-${timestamp}@example.com`,
                     password: testPassword,
                     firstName: 'Logout',
                     lastName: 'User'
                 });
+            
+            const tempToken = regRes.body.token;
             const tempRefreshToken = regRes.body.refreshToken;
 
-            const res = await request(app)
+            const beforeRes = await request(app)
+                .get('/api/auth/mfa/setup')
+                .set('Authorization', `Bearer ${tempToken}`);
+            expect(beforeRes.status).toBe(200);
+
+            await new Promise(r => setTimeout(r, 1050));
+
+            const logoutRes = await request(app)
                 .post('/api/auth/logout')
+                .set('Authorization', `Bearer ${tempToken}`)
                 .send({ refreshToken: tempRefreshToken });
             
-            expect(res.status).toBe(200);
+            expect(logoutRes.status).toBe(200);
 
-            // Confirm it was revoked
             const stored = await (prisma as any).refreshToken.findUnique({
                 where: { token: tempRefreshToken }
             });
             expect(stored.revoked).toBe(true);
 
-            // Clean up
+            const afterRes = await request(app)
+                .get('/api/auth/mfa/setup')
+                .set('Authorization', `Bearer ${tempToken}`);
+            expect(afterRes.status).toBe(401);
+            expect(afterRes.body.error).toContain('revoked');
+
+            const refreshRes = await request(app)
+                .post('/api/auth/refresh')
+                .send({ refreshToken: tempRefreshToken });
+            expect(refreshRes.status).toBe(401);
+
             await prisma.user.delete({ where: { id: regRes.body.user.id } });
         });
     });

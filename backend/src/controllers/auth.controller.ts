@@ -11,6 +11,7 @@ import { isPasswordPwned } from '../utils/pwned.utils';
 import { emailService } from '../services/email.service';
 import { smsService } from '../services/sms.service';
 import { analyticsService } from '../services/analytics.service';
+import { SessionService } from '../services/session.service';
 
 export const register = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -72,13 +73,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
         // SMS delivery — fire-and-forget so missing credentials never block registration
         if (phone) {
-            smsService.sendVerificationOTP(phone, phoneVerificationCode).catch(err =>
+            Promise.resolve(smsService.sendVerificationOTP(phone, phoneVerificationCode)).catch(err =>
                 console.warn('[Auth] SMS send failed (non-fatal):', err.message)
             );
         }
 
         // Email verification — fire-and-forget; fails gracefully if SMTP not configured
-        emailService.sendVerificationEmail(email, 'placeholder-token').catch(err =>
+        Promise.resolve(emailService.sendVerificationEmail(email, 'placeholder-token')).catch(err =>
             console.warn('[Auth] Verification email failed (non-fatal):', err.message)
         );
 
@@ -92,6 +93,17 @@ export const register = async (req: Request, res: Response): Promise<void> => {
                 userId: user.id,
                 expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
             }
+        });
+
+        const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || req.socket?.remoteAddress;
+        const userAgent = req.headers['user-agent'];
+
+        // Track user session
+        await SessionService.createSession({
+            userId: user.id,
+            refreshToken,
+            ipAddress,
+            userAgent,
         });
 
         // Set Refresh Token in Secure Cookie for Web
@@ -201,6 +213,17 @@ export const login = async (req: Request, res: Response): Promise<void> => {
                 userId: user.id,
                 expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
             }
+        });
+
+        const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || req.socket?.remoteAddress;
+        const userAgent = req.headers['user-agent'];
+
+        // Track user session
+        await SessionService.createSession({
+            userId: user.id,
+            refreshToken,
+            ipAddress,
+            userAgent,
         });
 
         // Set Refresh Token in Secure Cookie for Web
@@ -425,7 +448,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
         });
 
         // Email delivery — fire-and-forget; never crash if SMTP not configured
-        emailService.sendPasswordResetEmail(email, resetToken).catch(err =>
+        Promise.resolve(emailService.sendPasswordResetEmail(email, resetToken)).catch(err =>
             console.warn('[Auth] Password reset email failed (non-fatal):', err.message)
         );
 
@@ -527,6 +550,16 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
             }
         });
 
+        const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || req.socket?.remoteAddress;
+        const userAgent = req.headers['user-agent'];
+
+        await SessionService.createSession({
+            userId: user.id,
+            refreshToken,
+            ipAddress,
+            userAgent,
+        });
+
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -585,6 +618,16 @@ export const appleLogin = async (req: Request, res: Response): Promise<void> => 
                 userId: user.id,
                 expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
             }
+        });
+
+        const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || req.socket?.remoteAddress;
+        const userAgent = req.headers['user-agent'];
+
+        await SessionService.createSession({
+            userId: user.id,
+            refreshToken,
+            ipAddress,
+            userAgent,
         });
 
         res.cookie('refreshToken', refreshToken, {
@@ -680,21 +723,123 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
     }
 };
 
-export const logout = async (req: Request, res: Response): Promise<void> => {
+export const logout = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
 
-        if (refreshToken) {
+        let userId = req.user?.userId;
+        if (!userId && refreshToken) {
+            const payload: any = verifyToken(refreshToken, 'refresh');
+            if (payload?.userId) {
+                userId = payload.userId;
+            }
+        }
+
+        if (userId) {
+            await prisma.user.update({
+                where: { id: userId },
+                data: { lastLogoutAt: new Date() }
+            });
+
+            await (prisma as any).refreshToken.updateMany({
+                where: { userId },
+                data: { revoked: true }
+            });
+        } else if (refreshToken) {
             await (prisma as any).refreshToken.updateMany({
                 where: { token: refreshToken },
                 data: { revoked: true }
             });
         }
 
-        res.clearCookie('refreshToken');
+        if (refreshToken) {
+            await SessionService.invalidateSessionByToken(refreshToken);
+        }
+
+        res.clearCookie('refreshToken', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict'
+        });
+
         res.status(200).json({ message: 'Logged out successfully' });
     } catch (error) {
         console.error('Logout error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const getActiveSessions = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        const currentRefreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+        const sessions = await SessionService.getUserActiveSessions(userId, currentRefreshToken);
+
+        res.json({ sessions });
+    } catch (error) {
+        console.error('Get active sessions error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const revokeUserSession = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId;
+        const sessionId = req.params.sessionId as string;
+
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        if (!sessionId) {
+            res.status(400).json({ error: 'Session ID is required' });
+            return;
+        }
+
+        const success = await SessionService.revokeSession(sessionId, userId);
+        if (!success) {
+            res.status(404).json({ error: 'Session not found or already revoked' });
+            return;
+        }
+
+        res.json({ message: 'Session revoked successfully' });
+    } catch (error) {
+        console.error('Revoke session error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const revokeOtherSessions = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId;
+        const currentRefreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        let currentSessionId = '';
+        if (currentRefreshToken) {
+            const currentSession = await prisma.userSession.findUnique({
+                where: { refreshToken: currentRefreshToken }
+            });
+            if (currentSession) {
+                currentSessionId = currentSession.id;
+            }
+        }
+
+        const count = await SessionService.revokeAllOtherSessions(userId, currentSessionId);
+
+        res.json({ message: `Successfully logged out of ${count} other session(s)`, revokedCount: count });
+    } catch (error) {
+        console.error('Revoke other sessions error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };
