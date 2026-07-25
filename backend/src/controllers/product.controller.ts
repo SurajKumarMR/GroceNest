@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../utils/prisma';
 import { productSchema } from '../utils/validation';
 import { redisService } from '../services/redis.service';
+import { parsePagination, buildPaginatedResult } from '../utils/pagination';
 
 export const createProduct = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -53,6 +54,7 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
 export const getProducts = async (req: Request, res: Response): Promise<void> => {
     try {
         const { storeId, q, category, minPrice, maxPrice } = req.query;
+        const { page, limit, skip, take } = parsePagination(req, 20, 100);
 
         const whereClause: any = { status: 'active' };
 
@@ -81,18 +83,29 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
             if (maxPrice) whereClause.regularPrice.lte = Number(maxPrice);
         }
 
-        const products = await prisma.product.findMany({
-            where: whereClause,
-            include: {
-                store: {
-                    select: {
-                        name: true,
+        // Execute count and paginated query concurrently
+        const [totalItems, products] = await Promise.all([
+            prisma.product.count({ where: whereClause }),
+            prisma.product.findMany({
+                where: whereClause,
+                skip,
+                take,
+                include: {
+                    store: {
+                        select: {
+                            id: true,
+                            name: true,
+                            slug: true,
+                            logoUrl: true,
+                        }
                     }
-                }
-            },
-            take: 50,
-        });
-        res.json(products);
+                },
+                orderBy: { createdAt: 'desc' },
+            })
+        ]);
+
+        const paginatedResult = buildPaginatedResult(products, totalItems, page, limit);
+        res.json(paginatedResult);
     } catch (error) {
         console.error('List products error:', error);
         res.status(500).json({ error: 'Internal server error' });

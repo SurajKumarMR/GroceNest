@@ -244,22 +244,41 @@ export const getOrders = async (req: AuthRequest, res: Response): Promise<void> 
             return;
         }
 
-        const orders = await prisma.order.findMany({
-            where: { userId },
-            include: {
-                store: { select: { name: true, logoUrl: true } },
-                orderItems: true,
-                reviews: true
-            },
-            orderBy: { placedAt: 'desc' }
-        });
+        const { parsePagination, buildPaginatedResult } = require('../utils/pagination');
+        const { page, limit, skip, take } = parsePagination(req, 20, 100);
 
-        res.json(orders);
+        const whereClause = { userId };
+
+        const [totalItems, orders] = await Promise.all([
+            prisma.order.count({ where: whereClause }),
+            prisma.order.findMany({
+                where: whereClause,
+                skip,
+                take,
+                include: {
+                    store: { select: { id: true, name: true, logoUrl: true, slug: true } },
+                    orderItems: {
+                        select: {
+                            id: true,
+                            productName: true,
+                            quantity: true,
+                            unitPrice: true,
+                            subtotal: true
+                        }
+                    },
+                    reviews: { select: { id: true, rating: true, reviewText: true } }
+                },
+                orderBy: { placedAt: 'desc' }
+            })
+        ]);
+
+        const paginatedResult = buildPaginatedResult(orders, totalItems, page, limit);
+        res.json(paginatedResult);
     } catch (error) {
         console.error('Get orders error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
-}
+};
 
 export const cancelOrder = async (req: AuthRequest, res: Response): Promise<void> => {
     try {

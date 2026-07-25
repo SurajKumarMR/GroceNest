@@ -52,6 +52,9 @@ export const createStore = async (req: AuthRequest, res: Response): Promise<void
 export const getStores = async (req: Request, res: Response): Promise<void> => {
     try {
         const { q, cuisine } = req.query;
+        const { parsePagination, buildPaginatedResult } = require('../utils/pagination');
+        const { page, limit, skip, take } = parsePagination(req, 10, 50);
+
         const whereClause: any = { isActive: true };
 
         if (q) {
@@ -65,32 +68,26 @@ export const getStores = async (req: Request, res: Response): Promise<void> => {
             whereClause.cuisineTypes = { array_contains: String(cuisine) };
         }
 
-        const page = Number(req.query.page) || 1;
-        const limit = Number(req.query.limit) || 10;
-        const skip = (page - 1) * limit;
-
-        const [stores, total] = await Promise.all([
+        const [totalItems, stores] = await Promise.all([
+            prisma.store.count({ where: whereClause }),
             prisma.store.findMany({
                 where: whereClause,
+                skip,
+                take,
                 include: {
                     products: {
                         take: 3,
+                        select: { id: true, name: true, regularPrice: true, salePrice: true }
                     }
                 },
-                skip,
-                take: limit,
-            }),
-            prisma.store.count({ where: whereClause })
+                orderBy: { createdAt: 'desc' },
+            })
         ]);
 
+        const result = buildPaginatedResult(stores, totalItems, page, limit);
         res.json({
-            stores,
-            pagination: {
-                total,
-                page,
-                limit,
-                totalPages: Math.ceil(total / limit)
-            }
+            stores: result.data,
+            pagination: result.pagination
         });
     } catch (error) {
         console.error('List stores error:', error);
