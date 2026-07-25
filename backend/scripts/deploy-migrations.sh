@@ -21,9 +21,10 @@ mkdir -p "${BACKUP_DIR}"
 
 # 1. Database Connectivity & Backup
 if [ -n "${DATABASE_URL}" ]; then
+    CLEAN_DB_URL=$(echo "$DATABASE_URL" | sed 's/\?.*$//')
     echo "[Backup] Creating pre-migration database snapshot..."
     if command -v pg_dump >/dev/null 2>&1; then
-        if pg_dump "${DATABASE_URL}" --clean --if-exists --quote-all-identifiers > "${BACKUP_FILE}" 2>/dev/null; then
+        if pg_dump "${CLEAN_DB_URL}" --clean --if-exists --quote-all-identifiers > "${BACKUP_FILE}" 2>/dev/null; then
             echo "[Backup] SUCCESS: Snapshot saved to ${BACKUP_FILE}"
         else
             echo "[Backup] WARNING: pg_dump returned non-zero. Creating fallback SQL snapshot..."

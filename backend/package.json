@@ -17,6 +17,8 @@
     "test:smoke": "ts-node scripts/smoke-test.ts",
     "db:migrate:deploy": "bash scripts/deploy-migrations.sh",
     "db:backup": "bash ../scripts/verify-db-backup.sh",
+    "db:backup:daily": "bash scripts/daily-db-backup.sh",
+    "db:restore:weekly": "bash scripts/verify-weekly-restore.sh",
     "audit": "npm audit",
     "security:audit": "npm audit --audit-level=high"
   },
