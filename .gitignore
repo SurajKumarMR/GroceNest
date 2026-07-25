@@ -48,6 +48,8 @@ android/.gradle/
 uploads/
 /backend/dist/
 /backend/node_modules/
+/backend/backups/
+*.sql
 /mobile/node_modules/
 /web/node_modules/
 /web/.next/
