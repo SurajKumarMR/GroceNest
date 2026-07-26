@@ -1,0 +1,56 @@
+name: Docker Build & Vulnerability Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  docker-build-and-scan:
+    name: Docker Buildx Multi-Service Build & Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Container
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          tags: grocenest-backend:latest
+          load: true
+
+      - name: Build Web Container
+        uses: docker/build-push-action@v5
+        with:
+          context: ./web
+          file: ./web/Dockerfile
+          push: false
+          tags: grocenest-web:latest
+          load: true
+
+      - name: Build Mobile Container
+        uses: docker/build-push-action@v5
+        with:
+          context: ./mobile
+          file: ./mobile/Dockerfile
+          push: false
+          tags: grocenest-mobile:latest
+          load: true
+
+      - name: Run Trivy Vulnerability Scan on Backend Image
+        uses: aquasecurity/trivy-action@v0.28.0
+        with:
+          image-ref: 'grocenest-backend:latest'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'

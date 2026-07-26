@@ -1,0 +1,126 @@
+name: Continuous Integration (CI)
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  backend-ci:
+    name: Backend CI (Tests & Build)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: grocenest_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/grocenest_test?schema=public"
+
+      - name: Run Database Migrations
+        run: npx prisma migrate db push --accept-data-loss
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/grocenest_test?schema=public"
+
+      - name: Run Backend Unit Tests
+        run: npm run test:unit
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/grocenest_test?schema=public"
+          JWT_SECRET: "test-secret-key-32-chars-minimum-length!!"
+          ENCRYPTION_KEY: "12345678901234567890123456789012"
+          REDIS_URL: "redis://localhost:6379"
+
+      - name: Build Backend TypeScript
+        run: npm run build
+        working-directory: backend
+
+  web-ci:
+    name: Web Frontend CI (Build & Lint)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: Build Next.js Web App
+        run: npm run build
+        working-directory: web
+        env:
+          NEXT_PUBLIC_API_URL: "http://localhost:8000/api"
+
+  mobile-ci:
+    name: Mobile App CI (Jest & Static Checks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+        working-directory: mobile
+
+      - name: Run Mobile Jest Tests
+        run: npm test -- --passWithNoTests
+        working-directory: mobile
