@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import api from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,10 +16,14 @@ import {
     CheckCircle2,
     Lock,
     RefreshCw,
-    Wallet
+    Wallet,
+    Loader2
 } from "lucide-react";
 
 export default function PayoutsScreen() {
+    const [withdrawing, setWithdrawing] = useState(false);
+    const [message, setMessage] = useState("");
+
     const transactions = [
         { id: 1, amount: "$450.00", date: "Oct 24, 2023", status: "COMPLETED" },
         { id: 2, amount: "$1,200.00", date: "Oct 22, 2023", status: "PROCESSING" },
@@ -25,13 +31,33 @@ export default function PayoutsScreen() {
         { id: 4, amount: "$1,420.00", date: "Oct 08, 2023", status: "COMPLETED" },
     ];
 
+    const handleWithdraw = async () => {
+        setWithdrawing(true);
+        setMessage("");
+        try {
+            const res = await api.post("/owner/payouts");
+            setMessage(res.data.message || "Payout requested successfully!");
+        } catch (error: any) {
+            setMessage(error.response?.data?.error || "Failed to trigger payout.");
+        } finally {
+            setWithdrawing(false);
+        }
+    };
+
     return (
         <div className="max-w-3xl mx-auto p-4 md:p-8 space-y-8 pb-24 md:pb-8">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold tracking-tight text-[#1a202c]">Financial Summary</h1>
-                <Button className="bg-[#84cc16] hover:bg-[#65a30d] text-white rounded-full font-bold px-6 shadow-sm flex items-center gap-2">
-                    <Wallet className="h-4 w-4" />
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight text-[#1a202c]">Financial Summary</h1>
+                    {message && <p className="text-xs font-bold text-[#84cc16] mt-1">{message}</p>}
+                </div>
+                <Button 
+                    onClick={handleWithdraw}
+                    disabled={withdrawing}
+                    className="bg-[#84cc16] hover:bg-[#65a30d] text-white rounded-full font-bold px-6 shadow-sm flex items-center gap-2"
+                >
+                    {withdrawing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
                     Withdraw
                 </Button>
             </div>

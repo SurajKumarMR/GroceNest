@@ -11,7 +11,9 @@ import {
     updateProduct, 
     uploadProductImage,
     getStoreRevenueAnalytics,
-    triggerMerchantPayout
+    triggerMerchantPayout,
+    getStoreReviews,
+    respondToReview
 } from '../controllers/store-owner.controller';
 import { upload } from '../middleware/upload.middleware';
 
@@ -177,5 +179,47 @@ router.post('/products', createProduct);
 router.put('/products/:productId', updateProduct);
 router.delete('/products/:productId', deleteProduct);
 router.post('/products/:productId/image', upload.single('product'), uploadProductImage);
+
+/**
+ * @openapi
+ * /api/owner/reviews:
+ *   get:
+ *     summary: Retrieve all customer reviews for merchant store
+ *     tags: [Merchant]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of store reviews
+ */
+router.get('/reviews', getStoreReviews);
+
+/**
+ * @openapi
+ * /api/owner/reviews/{reviewId}/response:
+ *   post:
+ *     summary: Submit merchant response to customer review
+ *     tags: [Merchant]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: reviewId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [response]
+ *             properties:
+ *               response: { type: string, example: "Thank you for your feedback! We appreciate your business." }
+ *     responses:
+ *       200:
+ *         description: Review response submitted successfully
+ */
+router.post('/reviews/:reviewId/response', respondToReview);
 
 export default router;

@@ -12,7 +12,8 @@ import {
     ArrowLeft,
     BarChart2,
     Home,
-    Banknote
+    Banknote,
+    Star
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -28,6 +29,7 @@ export default function DashboardLayout({
         { label: "Analytics", href: "/dashboard/analytics", icon: BarChart2 },
         { label: "Store", href: "/dashboard/products", icon: Store },
         { label: "Payouts", href: "/dashboard/payouts", icon: Banknote },
+        { label: "Reviews", href: "/dashboard/reviews", icon: Star },
         { label: "Settings", href: "/dashboard/settings", icon: Settings },
     ];
 

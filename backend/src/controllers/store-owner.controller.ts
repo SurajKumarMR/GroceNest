@@ -156,7 +156,7 @@ export const getStoreRevenueAnalytics = async (req: AuthRequest, res: Response):
 export const triggerMerchantPayout = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const userId = req.user?.userId as string;
-        const { amount } = req.body;
+        const { amount } = req.body || {};
 
         const store = await prisma.store.findFirst({ where: { ownerId: userId } });
         if (!store) {
@@ -368,6 +368,84 @@ export const uploadProductImage = async (req: AuthRequest, res: Response): Promi
         res.status(201).json(productImage);
     } catch (error) {
         console.error('Upload product image error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const getStoreReviews = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        const store = await prisma.store.findFirst({ where: { ownerId: userId } });
+        if (!store) {
+            res.status(404).json({ error: 'Store not found' });
+            return;
+        }
+
+        const reviews = await prisma.review.findMany({
+            where: { storeId: store.id },
+            include: {
+                user: { select: { firstName: true, lastName: true, profilePhotoUrl: true } },
+                product: { select: { name: true } },
+                images: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        res.json(reviews);
+    } catch (error) {
+        console.error('Get store reviews error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const respondToReview = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user?.userId;
+        const reviewId = req.params.reviewId as string;
+        const responseText = req.body.response || req.body.storeResponse;
+
+        if (!userId) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        if (!responseText) {
+            res.status(400).json({ error: 'Response text is required' });
+            return;
+        }
+
+        const store = await prisma.store.findFirst({ where: { ownerId: userId } });
+        if (!store) {
+            res.status(404).json({ error: 'Store not found' });
+            return;
+        }
+
+        const review = await prisma.review.findUnique({ where: { id: reviewId } });
+        if (!review || review.storeId !== store.id) {
+            res.status(404).json({ error: 'Review not found for this store' });
+            return;
+        }
+
+        const updatedReview = await prisma.review.update({
+            where: { id: reviewId },
+            data: {
+                storeResponse: responseText,
+                storeResponseAt: new Date(),
+            },
+            include: {
+                user: { select: { firstName: true, lastName: true } },
+                images: true,
+            }
+        });
+
+        res.json(updatedReview);
+    } catch (error) {
+        console.error('Respond to review error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 };

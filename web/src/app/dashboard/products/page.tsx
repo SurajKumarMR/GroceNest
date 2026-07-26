@@ -61,6 +61,16 @@ export default function StoreInventoryPage() {
         setIsModalOpen(true);
     };
 
+    const handleToggleStock = async (product: any) => {
+        try {
+            const nextStatus = product.status === "active" ? "inactive" : "active";
+            await api.put(`/owner/products/${product.id}`, { status: nextStatus });
+            fetchInventory();
+        } catch (error) {
+            console.error("Toggle product status error:", error);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex h-[50vh] items-center justify-center">
@@ -118,9 +128,16 @@ export default function StoreInventoryPage() {
                                         <TableCell>${product.regularPrice.toFixed(2)}</TableCell>
                                         <TableCell>{product.stockQuantity}</TableCell>
                                         <TableCell>
-                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                                                {product.status}
-                                            </span>
+                                            <button
+                                                onClick={() => handleToggleStock(product)}
+                                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition-colors ${
+                                                    product.status === "active"
+                                                        ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                                        : "bg-red-100 text-red-700 hover:bg-red-200"
+                                                }`}
+                                            >
+                                                {product.status === "active" ? "In Stock" : "Out of Stock"}
+                                            </button>
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">

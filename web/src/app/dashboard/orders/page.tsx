@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
-type TabValue = "NEW" | "PREPARING" | "READY";
+type TabValue = "ALL" | "NEW" | "PREPARING" | "READY" | "CANCELLED";
 
 export default function StoreOrdersPage() {
     const [orders, setOrders] = useState<any[]>([]);
@@ -57,6 +57,7 @@ export default function StoreOrdersPage() {
 
     // Filter orders based on active tab
     const filteredOrders = orders.filter(order => {
+        if (activeTab === "ALL") return true;
         if (activeTab === "NEW") {
             return order.status === "PENDING" || order.status === "CONFIRMED";
         }
@@ -65,6 +66,9 @@ export default function StoreOrdersPage() {
         }
         if (activeTab === "READY") {
             return order.status === "READY" || order.status === "DELIVERED";
+        }
+        if (activeTab === "CANCELLED") {
+            return order.status === "CANCELLED" || order.status === "REJECTED";
         }
         return false;
     });
@@ -83,12 +87,12 @@ export default function StoreOrdersPage() {
             </div>
 
             {/* Custom Tabs */}
-            <div className="flex space-x-2 border-b pb-4">
-                {(["NEW", "PREPARING", "READY"] as TabValue[]).map((tab) => (
+            <div className="flex space-x-2 border-b pb-4 overflow-x-auto">
+                {(["ALL", "NEW", "PREPARING", "READY", "CANCELLED"] as TabValue[]).map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
-                        className={`px-4 py-2 font-medium text-sm rounded-full transition-colors ${
+                        className={`px-4 py-2 font-medium text-sm rounded-full transition-colors whitespace-nowrap ${
                             activeTab === tab 
                                 ? "bg-[#415e34] text-white shadow-sm"
                                 : "text-muted-foreground hover:bg-gray-100"
