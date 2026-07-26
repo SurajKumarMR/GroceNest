@@ -195,5 +195,19 @@ export const emailService = {
     `;
     return sendEmail(to, subject, text, html, customAttachments);
   },
+
+  sendPasswordChangeConfirmation: async (to: string) => {
+    return sendEmail(
+      to,
+      'Your password has been changed - GroceNest',
+      'Your GroceNest account password was successfully updated. If you did not initiate this change, please contact support immediately.',
+      `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+        <h2 style="color: #415e34; text-align: center;">Password Updated</h2>
+        <p>Your GroceNest account password was successfully changed.</p>
+        <p style="color: #666; font-size: 14px;">All active sessions have been logged out for security.</p>
+        <p style="font-size: 12px; color: #888; margin-top: 20px;">If you did not perform this action, please reset your password or contact customer support immediately.</p>
+      </div>`
+    );
+  },
 };
 

@@ -513,6 +513,11 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
             data: { revoked: true }
         });
 
+        // Dispatch password change confirmation email
+        Promise.resolve(emailService.sendPasswordChangeConfirmation(user.email)).catch(err =>
+            console.warn('[Auth] Password reset confirmation email failed (non-fatal):', err.message)
+        );
+
         res.json({ message: 'Password has been reset successfully.' });
     } catch (error) {
         console.error('Reset password error:', error);

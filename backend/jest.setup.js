@@ -6,6 +6,7 @@ jest.mock('./src/services/email.service', () => ({
     sendOrderConfirmationEmail: jest.fn().mockResolvedValue({ messageId: 'mock-id' }),
     sendDeliveryReceiptEmail: jest.fn().mockResolvedValue({ messageId: 'mock-id' }),
     sendRefundNotificationEmail: jest.fn().mockResolvedValue({ messageId: 'mock-id' }),
+    sendPasswordChangeConfirmation: jest.fn().mockResolvedValue({ messageId: 'mock-id' }),
     generateInvoiceAttachment: jest.fn().mockReturnValue({ filename: 'invoice.html', content: '<html></html>', contentType: 'text/html' }),
   }
 }));
