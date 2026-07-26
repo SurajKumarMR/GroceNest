@@ -18,6 +18,8 @@ import compression from 'compression';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import prisma, { getDbConnectionPoolMetrics } from './utils/prisma';
+import { metricsCollector } from './utils/metrics';
+import { metricsMiddleware } from './middleware/metrics.middleware';
 import logger from './utils/logger';
 import stripe from './services/stripe.service';
 
@@ -208,6 +210,7 @@ app.use(express.json({
     }
 }));
 app.use(analyticsMiddleware);
+app.use(metricsMiddleware);
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
@@ -292,6 +295,19 @@ app.get('/api/health/db-pool', async (req: Request, res: Response) => {
     const metrics = await getDbConnectionPoolMetrics();
     const isHealthy = !metrics.error;
     res.status(isHealthy ? 200 : 503).json(metrics);
+});
+
+// Detailed Telemetry Health Endpoint (for Uptime Robot & status page monitors)
+app.get('/health/detail', async (req: Request, res: Response) => {
+    const telemetry = await metricsCollector.getSystemTelemetryJSON();
+    res.json(telemetry);
+});
+
+// Prometheus & DataDog Metrics Export Endpoint
+app.get('/api/metrics', async (req: Request, res: Response) => {
+    const prometheusText = await metricsCollector.getPrometheusFormat();
+    res.setHeader('Content-Type', 'text/plain; version=0.0.4');
+    res.send(prometheusText);
 });
 
 // Error handling middleware

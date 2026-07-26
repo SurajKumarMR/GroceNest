@@ -83,6 +83,18 @@ export class MonitoringService {
       metadata: { endpoint, method, statusCode, errorStack },
     });
   }
+
+  /**
+   * Track API SLA latency breach alert (> 2000ms)
+   */
+  public async alertLatencySLABreach(endpoint: string, method: string, durationMs: number): Promise<void> {
+    await this.sendAlert({
+      severity: 'WARNING',
+      title: 'API Latency SLA Breach',
+      message: `${method} ${endpoint} took ${durationMs}ms to respond (threshold: 2000ms)`,
+      metadata: { endpoint, method, durationMs, thresholdMs: 2000 },
+    });
+  }
 }
 
 export const monitoringService = MonitoringService.getInstance();
