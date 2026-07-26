@@ -1,7 +1,9 @@
 node_modules
+.expo
+android
+ios
+build
 dist
-logs
-*.log
 .env
 .env.*
 .git
@@ -9,4 +11,3 @@ logs
 README.md
 __tests__
 coverage
-scripts/*.test.ts
