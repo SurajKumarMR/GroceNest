@@ -17,7 +17,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
-import prisma from './utils/prisma';
+import prisma, { getDbConnectionPoolMetrics } from './utils/prisma';
 import logger from './utils/logger';
 import stripe from './services/stripe.service';
 
@@ -285,6 +285,13 @@ app.get('/health', async (req: Request, res: Response) => {
 
     const statusCode = health.status === 'UP' ? 200 : 503;
     res.status(statusCode).json(health);
+});
+
+// Database Connection Pool Health & Metrics Check
+app.get('/api/health/db-pool', async (req: Request, res: Response) => {
+    const metrics = await getDbConnectionPoolMetrics();
+    const isHealthy = !metrics.error;
+    res.status(isHealthy ? 200 : 503).json(metrics);
 });
 
 // Error handling middleware
