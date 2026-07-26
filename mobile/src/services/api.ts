@@ -25,14 +25,55 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-// ── Response interceptor: clear session on 401 ────────────────────
+// ── Response interceptor: clear session on 401 & handle offline cache ─────
 api.interceptors.response.use(
-    (response) => response,
+    async (response) => {
+        // Automatically cache successful GET responses for core entities
+        if (response.config.method?.toLowerCase() === 'get' && response.data) {
+            const url = response.config.url || '';
+            const { cacheData } = require('./offline');
+            if (url.includes('/orders')) {
+                await cacheData('orders', response.data);
+            } else if (url.includes('/products')) {
+                await cacheData('products', response.data);
+            } else if (url.includes('/stores')) {
+                await cacheData('stores', response.data);
+            } else if (url.includes('/users/profile')) {
+                await cacheData('user', response.data);
+            }
+        }
+        return response;
+    },
     async (error) => {
         if (error.response?.status === 401) {
             // Token expired or invalid — wipe local session
             await AsyncStorage.multiRemove(['token', 'refreshToken', 'user']);
         }
+
+        // Handle network connection failure offline fallback
+        const isNetworkError = !error.response || error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED';
+        if (isNetworkError && error.config) {
+            const method = error.config.method?.toLowerCase();
+            const url = error.config.url || '';
+            const { getCachedData } = require('./offline');
+
+            if (method === 'get') {
+                if (url.includes('/orders')) {
+                    const cached = await getCachedData('orders');
+                    if (cached) return { data: cached, status: 200, headers: {}, config: error.config, statusText: 'OK (Cached)' };
+                } else if (url.includes('/products')) {
+                    const cached = await getCachedData('products');
+                    if (cached) return { data: cached, status: 200, headers: {}, config: error.config, statusText: 'OK (Cached)' };
+                } else if (url.includes('/stores')) {
+                    const cached = await getCachedData('stores');
+                    if (cached) return { data: cached, status: 200, headers: {}, config: error.config, statusText: 'OK (Cached)' };
+                } else if (url.includes('/users/profile')) {
+                    const cached = await getCachedData('user');
+                    if (cached) return { data: cached, status: 200, headers: {}, config: error.config, statusText: 'OK (Cached)' };
+                }
+            }
+        }
+
         return Promise.reject(error);
     }
 );

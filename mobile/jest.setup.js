@@ -16,18 +16,37 @@ jest.mock('@stripe/stripe-react-native', () => ({
     CardField: () => null,
 }));
 
-jest.mock('@react-native-async-storage/async-storage', () => ({
-    setItem: jest.fn(() => Promise.resolve()),
-    getItem: jest.fn(() => Promise.resolve(null)),
-    removeItem: jest.fn(() => Promise.resolve()),
-    mergeItem: jest.fn(() => Promise.resolve()),
-    clear: jest.fn(() => Promise.resolve()),
-    getAllKeys: jest.fn(() => Promise.resolve([])),
-    multiGet: jest.fn(() => Promise.resolve([])),
-    multiSet: jest.fn(() => Promise.resolve()),
-    multiRemove: jest.fn(() => Promise.resolve()),
-    multiMerge: jest.fn(() => Promise.resolve()),
-}));
+jest.mock('@react-native-async-storage/async-storage', () => {
+    let store: Record<string, string> = {};
+    return {
+        setItem: jest.fn((key: string, value: string) => {
+            store[key] = String(value);
+            return Promise.resolve();
+        }),
+        getItem: jest.fn((key: string) => {
+            return Promise.resolve(store[key] !== undefined ? store[key] : null);
+        }),
+        removeItem: jest.fn((key: string) => {
+            delete store[key];
+            return Promise.resolve();
+        }),
+        clear: jest.fn(() => {
+            store = {};
+            return Promise.resolve();
+        }),
+        getAllKeys: jest.fn(() => Promise.resolve(Object.keys(store))),
+        multiGet: jest.fn((keys: string[]) => Promise.resolve(keys.map(k => [k, store[k] || null]))),
+        multiSet: jest.fn((pairs: Array<[string, string]>) => {
+            pairs.forEach(([k, v]) => { store[k] = String(v); });
+            return Promise.resolve();
+        }),
+        multiRemove: jest.fn((keys: string[]) => {
+            keys.forEach(k => delete store[k]);
+            return Promise.resolve();
+        }),
+        __resetStore: () => { store = {}; }
+    };
+});
 
 jest.mock('@react-native-google-signin/google-signin', () => ({
     GoogleSignin: {
