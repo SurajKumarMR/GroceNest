@@ -1,8 +1,6 @@
-
 global.IS_REACT_ACT_ENVIRONMENT = true;
 
-import 'react-native-gesture-handler/jestSetup';
-
+require('react-native-gesture-handler/jestSetup');
 
 jest.mock('@stripe/stripe-react-native', () => ({
     useStripe: () => ({
@@ -17,16 +15,16 @@ jest.mock('@stripe/stripe-react-native', () => ({
 }));
 
 jest.mock('@react-native-async-storage/async-storage', () => {
-    let store: Record<string, string> = {};
+    let store = {};
     return {
-        setItem: jest.fn((key: string, value: string) => {
+        setItem: jest.fn((key, value) => {
             store[key] = String(value);
             return Promise.resolve();
         }),
-        getItem: jest.fn((key: string) => {
+        getItem: jest.fn((key) => {
             return Promise.resolve(store[key] !== undefined ? store[key] : null);
         }),
-        removeItem: jest.fn((key: string) => {
+        removeItem: jest.fn((key) => {
             delete store[key];
             return Promise.resolve();
         }),
@@ -35,13 +33,13 @@ jest.mock('@react-native-async-storage/async-storage', () => {
             return Promise.resolve();
         }),
         getAllKeys: jest.fn(() => Promise.resolve(Object.keys(store))),
-        multiGet: jest.fn((keys: string[]) => Promise.resolve(keys.map(k => [k, store[k] || null]))),
-        multiSet: jest.fn((pairs: Array<[string, string]>) => {
+        multiGet: jest.fn((keys) => Promise.resolve(keys.map((k) => [k, store[k] || null]))),
+        multiSet: jest.fn((pairs) => {
             pairs.forEach(([k, v]) => { store[k] = String(v); });
             return Promise.resolve();
         }),
-        multiRemove: jest.fn((keys: string[]) => {
-            keys.forEach(k => delete store[k]);
+        multiRemove: jest.fn((keys) => {
+            keys.forEach((k) => delete store[k]);
             return Promise.resolve();
         }),
         __resetStore: () => { store = {}; }
@@ -131,10 +129,10 @@ jest.mock('lucide-react-native', () => {
         {
             get: (target, prop) => {
                 if (prop === '__esModule') return true;
-                return (props) => React.createElement(View, { testID: `icon-${String(prop)}`, ...props });
+                const IconMock = (props) => React.createElement(View, { testID: `icon-${String(prop)}`, ...props });
+                IconMock.displayName = String(prop);
+                return IconMock;
             },
         }
     );
 });
-
-
