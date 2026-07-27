@@ -41,6 +41,8 @@ jobs:
 
   mobile-android-build:
     runs-on: ubuntu-latest
+    env:
+      GRADLE_OPTS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC"
     steps:
       - uses: actions/checkout@v4
 
