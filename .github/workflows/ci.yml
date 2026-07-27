@@ -58,7 +58,7 @@ jobs:
           DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/grocenest_test?schema=public"
 
       - name: Run Database Migrations
-        run: npx prisma migrate db push --accept-data-loss
+        run: npx prisma db push --accept-data-loss
         working-directory: backend
         env:
           DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/grocenest_test?schema=public"

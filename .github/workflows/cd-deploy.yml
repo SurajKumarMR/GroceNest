@@ -28,6 +28,8 @@ jobs:
       - name: Verify Prisma Schema Integrity
         run: npx prisma validate
         working-directory: backend
+        env:
+          DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/grocenest_test?schema=public"
 
       - name: Build Production Transpilation
         run: npm run build
